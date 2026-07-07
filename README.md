@@ -1,51 +1,42 @@
-# AI 발표·면접 코칭 MVP
+# AI Presentation Coach Prototype
 
-브라우저에서 바로 실행 가능한 정적 웹 MVP입니다. 별도 서버나 빌드 과정 없이 `index.html`을 열어 사용할 수 있습니다.
+발표/면접 연습 영상을 녹화하고 전사 텍스트를 바탕으로 Gemini 코칭 리포트를 생성하는 MVP입니다.
 
-## 핵심 기능
+## 구성
 
-1. 발표/면접 맥락 입력
-   - 유형
-   - 발표 목적/면접 목표
-   - 기업명/발표 대상
-   - 직무/주제
-   - 인재상/심사위원 성향/평가 기준
+- 정적 프론트엔드: `index.html`, `styles.css`, `app.js`
+- Netlify Function: `netlify/functions/analyze.js`
+- Gemini API 키는 브라우저에 노출하지 않고 Netlify 환경변수에서 읽습니다.
 
-2. 카메라 + 마이크 녹화
-   - WebRTC 기반 미리보기
-   - MediaRecorder 기반 영상 녹화
-   - 브라우저 지원 시 음성 자동 전사
-   - 자동 전사가 되지 않는 경우 직접 텍스트 입력 가능
+## Gemini API 키 발급
 
-3. 텍스트 기반 분석
-   - 말 빠르기 추정
-   - 불필요한 추임새 감지
-   - 긴 문장 감지
-   - 목적/기업/직무 키워드 반영률 계산
-   - 종합 점수 및 개선 우선순위 제공
+1. [Google AI Studio API keys](https://aistudio.google.com/app/apikey)에 접속합니다.
+2. Google 계정으로 로그인합니다.
+3. `Create API key`를 눌러 키를 생성합니다.
+4. 생성된 키를 복사해 Netlify 환경변수에 저장합니다.
 
-4. 영상 리뷰 체크
-   - 1차 MVP에서는 시선/표정/제스처/자세를 사용자가 직접 체크
-   - 이후 Face/Pose 모델 또는 클라우드 비전 API로 자동화 가능
+무료 티어는 모델과 지역, 사용량 제한에 따라 달라질 수 있으므로 실제 배포 전 [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing)을 확인하세요.
 
-## 실행 방법
+## Netlify 환경변수
 
-1. 압축 파일을 해제합니다.
-2. `index.html`을 브라우저에서 엽니다.
-3. 카메라/마이크 권한을 허용합니다.
-4. 발표 맥락을 입력하고 녹화합니다.
-5. 전사 텍스트를 확인한 뒤 `분석 리포트 생성`을 누릅니다.
+Netlify 프로젝트의 **Site configuration > Environment variables**에 다음 값을 추가하세요.
 
-## MVP 범위
+- `GEMINI_API_KEY`: Google AI Studio에서 발급받은 Gemini API 키
+- `GEMINI_MODEL`: 선택 사항. 기본값은 `gemini-3.1-flash-lite`
 
-이 버전은 서비스 흐름 검증용입니다. 실제 상용 서비스 수준의 자동 영상 분석, 기업 인재상 크롤링, LLM 기반 답변 첨삭은 포함하지 않았습니다.
+## 동작 흐름
 
-## 다음 개발 단계
+1. 발표/면접 목적, 회사/대상, 직무/주제, 평가 기준을 입력합니다.
+2. 브라우저에서 녹화하고 가능한 경우 음성 인식으로 전사 텍스트를 채웁니다.
+3. `Gemini 분석 리포트 생성`을 누르면 `/.netlify/functions/analyze`가 Gemini API를 호출합니다.
+4. API 호출에 실패하면 프론트엔드의 규칙 기반 분석으로 대체 리포트를 표시합니다.
 
-- React/Vite 프로젝트로 전환
-- 백엔드 API 추가
-- OpenAI API 또는 LLM API 기반 답변 첨삭
-- 채용 공고/기업 인재상 입력 자료 기반 RAG 분석
-- MediaPipe 기반 얼굴/관절 움직임 분석
-- 사용자별 연습 기록 저장
-- 전후 개선 추이 대시보드
+## 로컬 실행
+
+Netlify Functions까지 로컬에서 테스트하려면 Netlify CLI로 실행하는 것이 가장 간단합니다.
+
+```bash
+netlify dev
+```
+
+정적 화면만 확인할 때는 `index.html`을 브라우저에서 직접 열어도 됩니다. 이 경우 Gemini 호출은 동작하지 않고 폴백 분석만 사용할 수 있습니다.

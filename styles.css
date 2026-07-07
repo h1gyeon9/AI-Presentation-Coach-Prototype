@@ -126,6 +126,7 @@ button.ghost { background: transparent; color: var(--muted); border: 1px solid v
 .primary-wide { width: 100%; margin-top: 22px; padding: 15px 20px; }
 .status { color: var(--muted); margin: 10px 0 0; }
 .status.recording { color: var(--danger); font-weight: 800; }
+.status.error { color: var(--danger); font-weight: 800; }
 .hidden { display: none; }
 .check-grid {
   display: grid;
