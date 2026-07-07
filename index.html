@@ -3,124 +3,41 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI 발표/면접 코치 MVP</title>
+    <title>AI 코칭 서비스 선택</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <section class="hero">
-        <div>
-          <p class="eyebrow">Static AI Coach Prototype</p>
-          <h1>AI가 발표 영상을 분석하는 장면을 시각화한 MVP</h1>
-          <p class="hero-desc">
-            실제 API 요청 없이, 카메라 영상 위에 얼굴 위치·시선·자세 분석 UI가 돌아가는 것처럼 보여주고
-            이후 정적으로 준비된 발표 피드백 리포트를 출력합니다.
-          </p>
-        </div>
-        <div class="hero-card">
-          <span class="metric-label">Demo Flow</span>
-          <strong>카메라 입력 -> 분석 오버레이 -> 샘플 리포트</strong>
-          <p>기술 검증 전 단계에서 사용자 경험과 서비스 콘셉트를 설명하기 위한 가벼운 정적 프로토타입입니다.</p>
-        </div>
+    <main class="home-shell">
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">AI Coaching Prototype</p>
+        <h1 id="page-title">어떤 연습을 시작할까요?</h1>
+        <p class="intro-desc">
+          면접과 발표 페이지를 각각 독립적으로 개발할 수 있도록 첫 화면에서
+          원하는 코칭 모드를 선택합니다.
+        </p>
       </section>
 
-      <section class="grid two-col">
-        <article class="card">
-          <h2>1. 발표/면접 맥락</h2>
-          <label>
-            유형
-            <select id="sessionType">
-              <option>면접 답변</option>
-              <option>발표 연습</option>
-              <option>IR/피치</option>
-            </select>
-          </label>
-          <label>
-            목표
-            <textarea rows="3" placeholder="예: 프론트엔드 직무 적합성과 문제 해결 경험을 설득력 있게 보여주기"></textarea>
-          </label>
-          <label>
-            회사/대상
-            <input type="text" placeholder="예: 네이버 프론트엔드 직무 면접" />
-          </label>
-          <label>
-            평가 기준
-            <textarea rows="4" placeholder="예: 논리 구조, 자신감, 직무 연관성, 말하기 속도, 시선 처리"></textarea>
-          </label>
-        </article>
+      <section class="choice-grid" aria-label="코칭 모드 선택">
+        <a class="choice-card interview" href="./interview.html">
+          <span class="choice-icon" aria-hidden="true">Q</span>
+          <span class="choice-kicker">Interview Coach</span>
+          <strong>면접 연습</strong>
+          <span class="choice-desc">
+            예상 질문, 답변 구조, 시선과 자세 피드백을 중심으로 면접을 준비합니다.
+          </span>
+          <span class="choice-action">면접 페이지로 이동</span>
+        </a>
 
-        <article class="card">
-          <h2>2. 영상 입력 및 분석 시각화</h2>
-          <div class="video-frame">
-            <video id="preview" autoplay muted playsinline></video>
-            <div id="emptyVideoState" class="empty-video-state">
-              <strong>카메라 대기 중</strong>
-              <span>시작 버튼을 누르면 분석 오버레이가 표시됩니다.</span>
-            </div>
-            <div id="analysisOverlay" class="analysis-overlay hidden" aria-hidden="true">
-              <div class="scan-line"></div>
-              <div class="face-box">
-                <span class="corner tl"></span>
-                <span class="corner tr"></span>
-                <span class="corner bl"></span>
-                <span class="corner br"></span>
-                <strong>FACE 0.94</strong>
-              </div>
-              <span class="tracking-dot eye-left"></span>
-              <span class="tracking-dot eye-right"></span>
-              <span class="tracking-dot shoulder-left"></span>
-              <span class="tracking-dot shoulder-right"></span>
-              <div class="gaze-vector"></div>
-              <div class="overlay-panel">
-                <span id="overlayStep">Face position tracking</span>
-                <b id="overlayPercent">0%</b>
-              </div>
-            </div>
-          </div>
-          <div class="button-row">
-            <button id="startBtn">카메라 시작</button>
-            <button id="stopBtn" class="secondary" disabled>중지</button>
-            <button id="clearBtn" class="ghost">초기화</button>
-          </div>
-          <p id="recordingState" class="status">대기 중</p>
-        </article>
-      </section>
-
-      <section class="card analysis-console">
-        <div>
-          <h2>3. 분석 시뮬레이션</h2>
-          <p class="section-desc">
-            아래 버튼을 누르면 영상 분석 단계가 순차적으로 진행되는 것처럼 표시되고, 완료 후 샘플 리포트가 나타납니다.
-          </p>
-        </div>
-        <button id="analyzeBtn" class="primary-wide">분석 리포트 생성</button>
-        <div class="pipeline">
-          <div class="pipeline-step" data-step="0"><span></span>얼굴 위치 감지</div>
-          <div class="pipeline-step" data-step="1"><span></span>시선 안정성 추정</div>
-          <div class="pipeline-step" data-step="2"><span></span>자세 흔들림 분석</div>
-          <div class="pipeline-step" data-step="3"><span></span>발화 습관 리포트 구성</div>
-        </div>
-        <p id="analysisState" class="status"></p>
-      </section>
-
-      <section id="report" class="report hidden">
-        <div class="report-header">
-          <div>
-            <p class="eyebrow">Sample Analysis Report</p>
-            <h2>발표 코칭 리포트</h2>
-          </div>
-          <button id="copyReportBtn" class="secondary">리포트 복사</button>
-        </div>
-        <div class="score-grid">
-          <div class="score-card"><span>종합 점수</span><strong>82</strong></div>
-          <div class="score-card"><span>전달력</span><strong>78</strong></div>
-          <div class="score-card"><span>시선/자세</span><strong>74</strong></div>
-          <div class="score-card"><span>구조화</span><strong>86</strong></div>
-        </div>
-        <div id="reportBody" class="report-body"></div>
+        <a class="choice-card presentation" href="./presentation.html">
+          <span class="choice-icon" aria-hidden="true">P</span>
+          <span class="choice-kicker">Presentation Coach</span>
+          <strong>발표 연습</strong>
+          <span class="choice-desc">
+            발표 흐름, 전달력, 제스처와 화면 집중도를 확인하며 발표를 다듬습니다.
+          </span>
+          <span class="choice-action">발표 페이지로 이동</span>
+        </a>
       </section>
     </main>
-
-    <script src="./app.js"></script>
   </body>
 </html>
