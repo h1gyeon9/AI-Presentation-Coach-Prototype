@@ -1,11 +1,6 @@
-const API_ENDPOINT = "/.netlify/functions/gemini-interview";
+﻿const API_ENDPOINT = "/.netlify/functions/gemini-interview";
 const DOCUMENT_ENDPOINT = "/.netlify/functions/parse-document";
-const LIVE_TOKEN_ENDPOINT = "/.netlify/functions/live-token";
-const LIVE_WS_ENDPOINT =
-  "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
-const LIVE_INPUT_SAMPLE_RATE = 16000;
-const LIVE_OUTPUT_SAMPLE_RATE = 24000;
-const LIVE_SETUP_VARIANTS = ["full", "no-transcription", "minimal"];
+const TTS_ENDPOINT = "/.netlify/functions/gemini-tts";
 const NONVERBAL_TICK_MS = 1600;
 const NONVERBAL_LOG_EVERY_TICKS = 5;
 const SILENCE_PROMPT_MS = 10000;
@@ -62,21 +57,10 @@ const state = {
   },
   nonverbalHistory: [],
   signalEvents: [],
-  liveMode: false,
-  liveReady: false,
-  liveSocket: null,
-  liveStream: null,
-  liveAudioContext: null,
-  liveSource: null,
-  liveProcessor: null,
-  liveOutputTime: 0,
-  liveInputBuffer: "",
-  liveOutputBuffer: "",
-  liveModel: "",
-  liveManualClose: false,
-  liveSetupAttempt: 0,
-  liveSetupComplete: false,
-  liveSetupVariant: "full",
+  ttsAudio: null,
+  ttsBusy: false,
+  ttsRequestId: 0,
+  ttsCancel: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -95,9 +79,6 @@ const elements = {
   micButton: $("#micButton"),
   liveTranscript: $("#liveTranscript"),
   voiceToggle: $("#voiceToggle"),
-  liveStatus: $("#liveStatus"),
-  liveStartButton: $("#liveStartButton"),
-  liveStopButton: $("#liveStopButton"),
   answerForm: $("#answerForm"),
   answerInput: $("#answerInput"),
   sendButton: $("#sendButton"),
@@ -213,9 +194,8 @@ function updateMetrics() {
   const analysis = analyzeAnswers();
   elements.turnMetric.textContent = String(state.answers.length);
   elements.fillerMetric.textContent = String(analysis.fillerTotal);
-  elements.voiceMetric.textContent = state.liveMode ? "LIVE" : state.voiceEnabled ? "ON" : "OFF";
+  elements.voiceMetric.textContent = state.ttsBusy ? "AI" : state.voiceEnabled ? "ON" : "OFF";
   elements.reportButton.disabled = state.answers.length === 0;
-  updateLiveControls();
 }
 
 function persistSession() {
@@ -554,19 +534,14 @@ function setBusy(isBusy) {
   elements.sendButton.disabled = isBusy || !state.started;
   elements.answerInput.disabled = isBusy || !state.started;
   elements.micButton.disabled =
-    state.liveMode || isBusy || !state.started || !state.recognitionSupported || state.textInputMode;
+    isBusy || !state.started || !state.recognitionSupported || state.textInputMode;
   if (isBusy) {
     elements.liveTranscript.textContent = "AI 면접관이 다음 질문을 준비 중입니다.";
-  } else if (state.liveMode) {
-    elements.liveTranscript.textContent = state.liveReady
-      ? "실시간 음성 면접 진행 중입니다."
-      : "실시간 음성 세션을 준비하고 있습니다.";
   } else if (state.started) {
     elements.liveTranscript.textContent = state.recognitionSupported && !state.textInputMode
       ? "REC 버튼을 눌러 답변하세요."
       : "텍스트 입력 모드입니다. 답변을 입력한 뒤 전송하세요.";
   }
-  updateLiveControls();
 }
 
 function addMessage(role, text, shouldPersist = true) {
@@ -596,19 +571,103 @@ function clearChat() {
   persistSession();
 }
 
-function speak(text) {
-  if (!state.voiceEnabled || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  const voices = window.speechSynthesis.getVoices();
-  utterance.lang = "ko-KR";
-  utterance.rate = 0.94;
-  utterance.pitch = 0.96;
-  utterance.voice =
-    voices.find((voice) => voice.lang.toLowerCase().startsWith("ko")) ||
-    voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ||
-    null;
-  window.speechSynthesis.speak(utterance);
+function stopTtsPlayback() {
+  state.ttsRequestId += 1;
+  state.ttsBusy = false;
+  if (state.ttsAudio) {
+    state.ttsAudio.pause();
+    state.ttsAudio.removeAttribute("src");
+    state.ttsAudio.load();
+    state.ttsAudio = null;
+  }
+  if (state.ttsCancel) {
+    state.ttsCancel();
+    state.ttsCancel = null;
+  }
+  updateMetrics();
+}
+
+async function requestTtsAudio(text) {
+  const response = await fetch(TTS_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text,
+      voice: "Kore",
+      style: "calm-interviewer",
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data.error || "AI 음성 생성에 실패했습니다.");
+    error.status = response.status;
+    throw error;
+  }
+  if (!data.audioBase64) {
+    throw new Error("AI 음성 응답이 비어 있습니다.");
+  }
+  return data;
+}
+
+async function speak(text) {
+  if (!state.voiceEnabled || !text) return;
+  stopTtsPlayback();
+  const requestId = state.ttsRequestId;
+  state.ttsBusy = true;
+  elements.liveTranscript.textContent = "AI 음성을 생성하고 있습니다.";
+  updateMetrics();
+
+  try {
+    const data = await requestTtsAudio(text);
+    if (requestId !== state.ttsRequestId || !state.voiceEnabled) return;
+
+    const audio = new Audio(`data:${data.mimeType || "audio/wav"};base64,${data.audioBase64}`);
+    state.ttsAudio = audio;
+    audio.onplay = () => {
+      elements.liveTranscript.textContent = "AI 음성을 재생 중입니다.";
+    };
+    await new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        state.ttsCancel = null;
+        if (state.ttsAudio === audio) {
+          state.ttsAudio = null;
+          state.ttsBusy = false;
+          if (state.started && !state.busy) {
+            elements.liveTranscript.textContent = state.recognitionSupported && !state.textInputMode
+              ? "REC 버튼을 눌러 답변하세요."
+              : "텍스트 입력 모드입니다. 답변을 입력하고 전송하세요.";
+          }
+          updateMetrics();
+        }
+        resolve();
+      };
+      const fail = (error) => {
+        if (settled) return;
+        settled = true;
+        state.ttsCancel = null;
+        reject(error);
+      };
+      state.ttsCancel = finish;
+      audio.onended = finish;
+      audio.onerror = () => fail(new Error("AI 음성 재생에 실패했습니다."));
+      audio.play().catch(fail);
+    });
+  } catch (error) {
+    if (requestId !== state.ttsRequestId) return;
+    if (state.ttsAudio) {
+      state.ttsAudio.pause();
+      state.ttsAudio.removeAttribute("src");
+      state.ttsAudio = null;
+    }
+    state.ttsCancel = null;
+    state.ttsBusy = false;
+    elements.liveTranscript.textContent = "AI 음성 출력에 실패했습니다. 텍스트로 답변을 확인해 주세요.";
+    console.warn("[AI TTS] failed", error);
+    updateMetrics();
+  }
 }
 
 function switchToTextMode(message) {
@@ -795,616 +854,6 @@ async function callGemini(mode, payload) {
   }
 }
 
-function setLiveStatus(message, tone = "idle") {
-  elements.liveStatus.textContent = message;
-  elements.liveStatus.classList.toggle("is-live", tone === "live");
-  elements.liveStatus.classList.toggle("is-error", tone === "error");
-}
-
-function updateLiveControls() {
-  elements.liveStartButton.disabled = state.busy || state.liveMode;
-  elements.liveStopButton.disabled = !state.liveMode;
-
-  if (state.liveMode) {
-    elements.micButton.disabled = true;
-    elements.answerInput.disabled = false;
-    elements.sendButton.disabled = false;
-  }
-}
-
-function normalizeLiveModelName(model) {
-  const value = model || "gemini-3.1-flash-live-preview";
-  return value.startsWith("models/") ? value : `models/${value}`;
-}
-
-function getLiveSetupVariant(attempt) {
-  return LIVE_SETUP_VARIANTS[Math.min(attempt, LIVE_SETUP_VARIANTS.length - 1)];
-}
-
-function buildLiveSetupMessage(variant) {
-  const setup = {
-    model: normalizeLiveModelName(state.liveModel),
-    generationConfig: {
-      responseModalities: ["AUDIO"],
-      temperature: 0.7,
-    },
-  };
-
-  if (variant !== "minimal") {
-    setup.systemInstruction = {
-      parts: [{ text: buildLiveSystemInstruction() }],
-    };
-  }
-
-  if (variant === "full") {
-    setup.inputAudioTranscription = {};
-    setup.outputAudioTranscription = {};
-  }
-
-  return { setup };
-}
-
-function buildLiveSystemInstruction() {
-  const profile = getProfile();
-  const history = state.messages
-    .slice(-8)
-    .map((message) => `${message.role === "ai" ? "면접관" : "지원자"}: ${message.text}`)
-    .join("\n");
-
-  return [
-    "당신은 한국어로 실시간 음성 면접을 진행하는 1:1 AI 면접관입니다.",
-    `회사: ${profile.company}`,
-    `직무: ${profile.role}`,
-    `인재상: ${profile.talent}`,
-    `면접관 페르소나: ${profile.personaLabel}`,
-    `꼬리질문 강도: 1에서 5 중 ${profile.depth}`,
-    `자기소개서 파일: ${profile.resumeName || "없음"}`,
-    `자기소개서 발췌: ${profile.resumeText || "없음"}`,
-    history ? `[이전 대화]\n${history}` : "[이전 대화]\n아직 대화 없음",
-    "실제 면접처럼 한 번에 질문 하나만 던지세요.",
-    "답변 직후에는 역할, 근거, 수치, 갈등, 실패, 재발 방지, 직무 적합성 중 하나를 파고드는 꼬리 질문을 하세요.",
-    "실시간 음성 대화이므로 1~2문장으로 짧고 자연스럽게 말하세요.",
-    "칭찬이나 해설을 길게 하지 말고, 면접관처럼 다음 질문으로 대화를 이어가세요.",
-  ].join("\n");
-}
-
-function buildLiveStartPrompt() {
-  if (state.messages.length) {
-    return "지금까지의 면접 대화 흐름을 이어서 다음 꼬리 질문 하나를 해 주세요.";
-  }
-  return "면접을 시작해 주세요. 첫 질문은 자기소개 또는 직무 지원 동기와 관련된 짧은 질문 하나로 해 주세요.";
-}
-
-function prepareLiveSession() {
-  if (!state.started) {
-    state.started = true;
-    state.answers = [];
-    state.answerMeta = [];
-    state.messages = [];
-    state.silenceEvents = [];
-    state.lastReport = null;
-    state.activeReportTab = "language";
-    elements.chatLog.innerHTML = "";
-    elements.reportContent.innerHTML = `
-      <div class="empty-state">답변을 한 번 이상 전송하면 리포트를 만들 수 있습니다.</div>
-    `;
-    setReportActionsEnabled(false);
-  }
-
-  elements.answerInput.disabled = false;
-  elements.sendButton.disabled = false;
-  elements.micButton.disabled = true;
-  elements.answerInput.value = "";
-  elements.personaSummary.textContent = `${getProfile().company} · ${getProfile().role} · 실시간 음성 면접`;
-  updateMetrics();
-  persistSession();
-}
-
-async function requestLiveToken() {
-  const response = await fetch(LIVE_TOKEN_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      profile: getProfile(),
-      systemInstruction: buildLiveSystemInstruction(),
-    }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(data.error || "실시간 AI 토큰 요청에 실패했습니다.");
-    error.status = response.status;
-    error.code = data.code || "LIVE_TOKEN_ERROR";
-    throw error;
-  }
-  if (!data.token) {
-    const error = new Error("실시간 AI 토큰 응답이 비어 있습니다.");
-    error.code = "LIVE_TOKEN_EMPTY";
-    throw error;
-  }
-  return data;
-}
-
-function sendLiveMessage(message) {
-  if (state.liveSocket?.readyState !== WebSocket.OPEN) return false;
-  state.liveSocket.send(JSON.stringify(message));
-  return true;
-}
-
-function sendLiveText(text) {
-  if (!text || !state.liveReady) return false;
-  return sendLiveMessage({
-    realtimeInput: {
-      text,
-    },
-  });
-}
-
-function handleLiveStartupError(error) {
-  stopLiveInterview(false);
-  const message = getReadableError(error);
-  setConnection("AI Live 실패", "red");
-  setLiveStatus(message, "error");
-  showApiNotice(message, startLiveInterview);
-}
-
-function getJsonObjectKeys(rawMessage) {
-  try {
-    return Object.keys(JSON.parse(rawMessage));
-  } catch (error) {
-    return ["unparseable"];
-  }
-}
-
-async function connectLiveSocket(attempt = 0) {
-  const variant = getLiveSetupVariant(attempt);
-  const canRetry = attempt < LIVE_SETUP_VARIANTS.length - 1;
-  let setupTimer = null;
-  const clearSetupTimer = () => {
-    window.clearTimeout(setupTimer);
-    setupTimer = null;
-  };
-  const retryWithNextSetup = (reason) => {
-    if (!canRetry) return false;
-    const nextAttempt = attempt + 1;
-    const nextVariant = getLiveSetupVariant(nextAttempt);
-    console.info("[AI Live] retrying setup with reduced fields", {
-      reason,
-      nextVariant,
-      nextAttempt: nextAttempt + 1,
-    });
-    clearSetupTimer();
-    if (state.liveSocket === socket) {
-      state.liveSocket = null;
-    }
-    state.liveReady = false;
-    updateLiveControls();
-    connectLiveSocket(nextAttempt).catch(handleLiveStartupError);
-    return true;
-  };
-  state.liveSetupAttempt = attempt;
-  state.liveSetupVariant = variant;
-
-  const tokenData = await requestLiveToken();
-  state.liveModel = tokenData.model || "gemini-3.1-flash-live-preview";
-  console.info("[AI Live] token issued", {
-    model: state.liveModel,
-    setupVariant: variant,
-    attempt: attempt + 1,
-  });
-
-  const socket = new WebSocket(
-    `${LIVE_WS_ENDPOINT}?access_token=${encodeURIComponent(tokenData.token)}`,
-  );
-  state.liveSocket = socket;
-
-  socket.onopen = () => {
-    setLiveStatus("AI 음성 세션을 설정하고 있습니다.", "live");
-    const setupMessage = buildLiveSetupMessage(variant);
-    console.info("[AI Live] sending setup", {
-      model: setupMessage.setup.model,
-      setupVariant: variant,
-      attempt: attempt + 1,
-      fields: Object.keys(setupMessage.setup),
-    });
-    sendLiveMessage(setupMessage);
-    setupTimer = window.setTimeout(() => {
-      if (state.liveSocket !== socket || state.liveSetupComplete) return;
-      console.warn("[AI Live] setup timed out", {
-        setupVariant: variant,
-        attempt: attempt + 1,
-      });
-      socket.onclose = null;
-      socket.onerror = null;
-      socket.close();
-      if (!retryWithNextSetup("setup timeout")) {
-        cleanupLiveConnection();
-        setLiveStatus("AI 음성 세션 설정 응답이 지연되고 있습니다. 다시 시도해 주세요.", "error");
-        setConnection("AI Live 실패", "red");
-        showApiNotice("AI 음성 세션 설정 응답이 지연되고 있습니다. AI 재시도 버튼을 눌러 다시 연결해 보세요.", startLiveInterview);
-      }
-    }, 8000);
-  };
-
-  socket.onmessage = (event) => {
-    if (!state.liveSetupComplete) {
-      console.info("[AI Live] message received before setup complete", {
-        setupVariant: variant,
-        keys: getJsonObjectKeys(event.data),
-      });
-    }
-    handleLiveMessage(event.data);
-  };
-
-  socket.onerror = (event) => {
-    console.error("[AI Live] websocket error", event);
-    setLiveStatus("실시간 음성 연결 오류가 발생했습니다.", "error");
-    setConnection("AI Live 실패", "red");
-  };
-
-  socket.onclose = (event) => {
-    clearSetupTimer();
-    const wasManual = state.liveManualClose;
-    console.warn("[AI Live] websocket closed", {
-      code: event.code,
-      reason: event.reason,
-      wasClean: event.wasClean,
-      wasManual,
-      model: state.liveModel,
-      setupVariant: variant,
-      attempt: attempt + 1,
-    });
-
-    const shouldRetrySetup =
-      !wasManual &&
-      !state.liveSetupComplete &&
-      canRetry &&
-      (event.code === 1007 || event.code === 1008);
-
-    if (shouldRetrySetup && retryWithNextSetup(`websocket ${event.code}: ${event.reason || "no reason"}`)) {
-      return;
-    }
-
-    cleanupLiveConnection();
-    if (!wasManual && state.started) {
-      setLiveStatus("실시간 음성 연결이 끊겼습니다. 다시 시도할 수 있습니다.", "error");
-      setConnection("AI Live 끊김", "red");
-      showApiNotice(
-        `실시간 음성 연결이 종료되었습니다. (${event.code || "unknown"}${event.reason ? `: ${event.reason}` : ""})`,
-        startLiveInterview,
-      );
-    }
-  };
-}
-
-async function startLiveInterview() {
-  if (state.liveMode || state.busy) return;
-
-  if (!("WebSocket" in window)) {
-    showApiNotice("이 브라우저는 실시간 음성 연결을 지원하지 않습니다.", startLiveInterview);
-    setLiveStatus("실시간 음성 연결을 지원하지 않는 브라우저입니다.", "error");
-    return;
-  }
-
-  if (state.recognition && state.isRecording) {
-    state.recognition.stop();
-  }
-
-  window.speechSynthesis?.cancel();
-  hideApiNotice();
-  prepareLiveSession();
-  clearSilenceTimer();
-  state.liveMode = true;
-  state.liveReady = false;
-  state.liveInputBuffer = "";
-  state.liveOutputBuffer = "";
-  state.liveOutputTime = 0;
-  state.liveManualClose = false;
-  state.liveSetupAttempt = 0;
-  state.liveSetupComplete = false;
-  state.liveSetupVariant = "full";
-  updateLiveControls();
-  setConnection("AI Live 연결 중", "amber");
-  setLiveStatus("실시간 음성 세션을 준비하고 있습니다.", "live");
-  elements.liveTranscript.textContent = "AI와 실시간 연결 중입니다.";
-
-  try {
-    await connectLiveSocket(0);
-  } catch (error) {
-    handleLiveStartupError(error);
-  }
-}
-
-function cleanupLiveConnection() {
-  stopLiveAudioCapture();
-  state.liveSocket = null;
-  state.liveMode = false;
-  state.liveReady = false;
-  state.liveManualClose = false;
-  state.liveInputBuffer = "";
-  state.liveOutputBuffer = "";
-  state.liveSetupComplete = false;
-  state.liveSetupAttempt = 0;
-  state.liveSetupVariant = "full";
-  updateLiveControls();
-}
-
-function stopLiveInterview(showIdleStatus = true) {
-  if (state.liveSocket) {
-    const socket = state.liveSocket;
-    state.liveManualClose = true;
-    socket.onclose = null;
-    socket.onerror = null;
-    sendLiveMessage({ realtimeInput: { audioStreamEnd: true } });
-    socket.close();
-  }
-  cleanupLiveConnection();
-  if (showIdleStatus) {
-    setLiveStatus("기본 음성 모드입니다. 실시간 모드를 켜면 AI와 바로 말로 주고받습니다.");
-    setConnection(state.started ? "AI 연결됨" : "AI 대기", state.started ? "green" : "blue");
-  }
-}
-
-function handleLiveMessage(rawMessage) {
-  let response;
-  try {
-    response = JSON.parse(rawMessage);
-  } catch (error) {
-    return;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(response, "setupComplete")) {
-    state.liveReady = true;
-    state.liveSetupComplete = true;
-    console.info("[AI Live] setup complete", {
-      setupVariant: state.liveSetupVariant,
-      attempt: state.liveSetupAttempt + 1,
-    });
-    setConnection("AI Live 연결됨", "green");
-    setLiveStatus("실시간 음성 면접 진행 중입니다. 자연스럽게 답변하세요.", "live");
-    elements.liveTranscript.textContent = "마이크를 통해 바로 답변할 수 있습니다.";
-    updateLiveControls();
-    startLiveAudioCapture()
-      .then(() => {
-        sendLiveText(buildLiveStartPrompt());
-      })
-      .catch((error) => {
-        stopLiveInterview(false);
-        switchToTextMode("마이크 권한이 허용되지 않아 텍스트 입력 모드로 자동 전환했습니다.");
-        const message = error?.message || "마이크 연결에 실패했습니다.";
-        setConnection("AI Live 실패", "red");
-        setLiveStatus(message, "error");
-        showApiNotice(message, startLiveInterview);
-      });
-    return;
-  }
-
-  if (response.error) {
-    console.error("[AI Live] server error message", response.error);
-    setLiveStatus("AI Live 서버 오류가 발생했습니다. 다시 시도해 주세요.", "error");
-    return;
-  }
-
-  if (response.goAway) {
-    console.warn("[AI Live] server requested disconnect", response.goAway);
-  }
-
-  if (response.sessionResumptionUpdate) {
-    console.info("[AI Live] session resumption update", response.sessionResumptionUpdate);
-  }
-
-  const serverContent = response.serverContent;
-  if (!serverContent) {
-    console.info("[AI Live] unhandled message", { keys: Object.keys(response) });
-    return;
-  }
-
-  if (serverContent.inputTranscription?.text) {
-    if (!state.currentAnswerStartedAt) markAnswerStarted("live-voice");
-    state.liveInputBuffer = appendTranscriptChunk(
-      state.liveInputBuffer,
-      serverContent.inputTranscription.text,
-    );
-    elements.liveTranscript.textContent = `나: ${state.liveInputBuffer}`;
-  }
-
-  if (serverContent.outputTranscription?.text) {
-    state.liveOutputBuffer = appendTranscriptChunk(
-      state.liveOutputBuffer,
-      serverContent.outputTranscription.text,
-    );
-    elements.liveTranscript.textContent = `AI: ${state.liveOutputBuffer}`;
-  }
-
-  if (serverContent.modelTurn?.parts) {
-    serverContent.modelTurn.parts.forEach((part) => {
-      if (part.inlineData?.data) {
-        playLiveAudio(part.inlineData.data);
-      }
-    });
-  }
-
-  if (serverContent.turnComplete || serverContent.generationComplete) {
-    commitLiveTranscripts();
-  }
-}
-
-function appendTranscriptChunk(current, chunk) {
-  const next = String(chunk || "").trim();
-  if (!next) return current;
-  if (!current) return next;
-  if (next.startsWith(current)) return next;
-  if (current.endsWith(next)) return current;
-  return `${current} ${next}`.replace(/\s+/g, " ").trim();
-}
-
-function isDuplicateRecentMessage(role, text) {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  return state.messages
-    .slice(-4)
-    .some((message) => message.role === role && message.text.replace(/\s+/g, " ").trim() === normalized);
-}
-
-function commitLiveTranscripts() {
-  const userText = state.liveInputBuffer.replace(/\s+/g, " ").trim();
-  const aiText = state.liveOutputBuffer.replace(/\s+/g, " ").trim();
-
-  if (userText && !isDuplicateRecentMessage("user", userText)) {
-    recordUserAnswer(userText, "live-voice");
-  }
-
-  if (aiText && !isDuplicateRecentMessage("ai", aiText)) {
-    addMessage("ai", aiText);
-    startSilenceTimer(aiText);
-  } else if (aiText) {
-    startSilenceTimer(aiText);
-  }
-
-  state.liveInputBuffer = "";
-  state.liveOutputBuffer = "";
-  persistSession();
-}
-
-async function ensureLiveAudioContext() {
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) {
-    throw new Error("이 브라우저는 실시간 오디오 처리를 지원하지 않습니다.");
-  }
-  if (!state.liveAudioContext || state.liveAudioContext.state === "closed") {
-    state.liveAudioContext = new AudioContext();
-  }
-  if (state.liveAudioContext.state === "suspended") {
-    await state.liveAudioContext.resume();
-  }
-  return state.liveAudioContext;
-}
-
-async function startLiveAudioCapture() {
-  if (state.liveStream) return;
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error("마이크 API를 사용할 수 없어 실시간 음성 모드를 시작할 수 없습니다.");
-  }
-
-  const context = await ensureLiveAudioContext();
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-    },
-    video: false,
-  });
-  const source = context.createMediaStreamSource(stream);
-  const processor = context.createScriptProcessor(4096, 1, 1);
-
-  processor.onaudioprocess = (event) => {
-    if (!state.liveMode || !state.liveReady) return;
-    const input = event.inputBuffer.getChannelData(0);
-    const pcm = downsampleTo16BitPcm(input, context.sampleRate, LIVE_INPUT_SAMPLE_RATE);
-    if (!pcm.length) return;
-    sendLiveMessage({
-      realtimeInput: {
-        audio: {
-          data: arrayBufferToBase64(pcm.buffer),
-          mimeType: `audio/pcm;rate=${LIVE_INPUT_SAMPLE_RATE}`,
-        },
-      },
-    });
-  };
-
-  source.connect(processor);
-  processor.connect(context.destination);
-  state.liveStream = stream;
-  state.liveSource = source;
-  state.liveProcessor = processor;
-}
-
-function stopLiveAudioCapture() {
-  if (state.liveProcessor) {
-    state.liveProcessor.disconnect();
-    state.liveProcessor.onaudioprocess = null;
-  }
-  if (state.liveSource) {
-    state.liveSource.disconnect();
-  }
-  if (state.liveStream) {
-    state.liveStream.getTracks().forEach((track) => track.stop());
-  }
-  state.liveProcessor = null;
-  state.liveSource = null;
-  state.liveStream = null;
-}
-
-function downsampleTo16BitPcm(input, inputRate, outputRate) {
-  if (outputRate === inputRate) {
-    return floatTo16BitPcm(input);
-  }
-  const ratio = inputRate / outputRate;
-  const length = Math.max(1, Math.round(input.length / ratio));
-  const result = new Float32Array(length);
-
-  for (let i = 0; i < length; i += 1) {
-    const start = Math.floor(i * ratio);
-    const end = Math.min(input.length, Math.floor((i + 1) * ratio));
-    let sum = 0;
-    let count = 0;
-    for (let j = start; j < end; j += 1) {
-      sum += input[j];
-      count += 1;
-    }
-    result[i] = count ? sum / count : 0;
-  }
-
-  return floatTo16BitPcm(result);
-}
-
-function floatTo16BitPcm(input) {
-  const output = new Int16Array(input.length);
-  for (let i = 0; i < input.length; i += 1) {
-    const sample = Math.max(-1, Math.min(1, input[i]));
-    output[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-  }
-  return output;
-}
-
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return window.btoa(binary);
-}
-
-function base64ToArrayBuffer(base64) {
-  const binary = window.atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes.buffer;
-}
-
-async function playLiveAudio(base64Audio) {
-  try {
-    const context = await ensureLiveAudioContext();
-    const pcm = new Int16Array(base64ToArrayBuffer(base64Audio));
-    const audioBuffer = context.createBuffer(1, pcm.length, LIVE_OUTPUT_SAMPLE_RATE);
-    const channel = audioBuffer.getChannelData(0);
-    for (let i = 0; i < pcm.length; i += 1) {
-      channel[i] = pcm[i] / 0x8000;
-    }
-    const source = context.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(context.destination);
-    const startAt = Math.max(context.currentTime + 0.02, state.liveOutputTime || 0);
-    source.start(startAt);
-    state.liveOutputTime = startAt + audioBuffer.duration;
-  } catch (error) {
-    setLiveStatus("AI 음성 재생에 실패했습니다. 대화 전사는 계속 표시됩니다.", "error");
-  }
-}
-
 function fallbackInterviewerQuestion(latestAnswer) {
   const turnIndex = state.answers.length;
   const answer = latestAnswer || "";
@@ -1435,7 +884,7 @@ async function requestInterviewer(latestAnswer = "") {
     });
     const reply = data.reply || data.text || fallbackInterviewerQuestion(latestAnswer);
     addMessage("ai", reply);
-    speak(reply);
+    await speak(reply);
     startSilenceTimer(reply);
   } catch (error) {
     const message = getReadableError(error);
@@ -1443,7 +892,7 @@ async function requestInterviewer(latestAnswer = "") {
     showApiNotice(message, () => requestInterviewer(latestAnswer));
     const reply = fallbackInterviewerQuestion(latestAnswer);
     addMessage("ai", reply);
-    speak(reply);
+    await speak(reply);
     startSilenceTimer(reply);
   } finally {
     setBusy(false);
@@ -1454,8 +903,7 @@ async function requestInterviewer(latestAnswer = "") {
 
 async function startInterview() {
   if (state.busy) return;
-  stopLiveInterview();
-  window.speechSynthesis?.cancel();
+  stopTtsPlayback();
   state.started = true;
   state.answers = [];
   state.answerMeta = [];
@@ -1508,12 +956,6 @@ async function handleAnswer(rawText) {
     state.started = true;
   }
   elements.answerInput.value = "";
-
-  if (state.liveMode) {
-    recordUserAnswer(text, "live-text");
-    sendLiveText(text);
-    return;
-  }
 
   recordUserAnswer(text);
   await requestInterviewer(text);
@@ -2258,8 +1700,7 @@ function resetSession() {
   const confirmed = window.confirm("현재 면접 대화와 리포트를 모두 초기화할까요?");
   if (!confirmed) return;
 
-  window.speechSynthesis?.cancel();
-  stopLiveInterview(false);
+  stopTtsPlayback();
   stopCamera(true);
   clearSilenceTimer();
   if (state.recognition && state.isRecording) {
@@ -2288,7 +1729,6 @@ function resetSession() {
   hideApiNotice();
   setReportActionsEnabled(false);
   setConnection("AI 대기", "blue");
-  setLiveStatus("기본 음성 모드입니다. 실시간 모드를 켜면 AI와 바로 말로 주고받습니다.");
   clearChat();
   sessionStorage.removeItem(SESSION_STORAGE_KEY);
 }
@@ -2310,8 +1750,6 @@ elements.depthInput.addEventListener("input", () => {
 elements.startButton.addEventListener("click", startInterview);
 elements.cameraButton.addEventListener("click", startCamera);
 elements.simulationButton.addEventListener("click", startDemoMode);
-elements.liveStartButton.addEventListener("click", startLiveInterview);
-elements.liveStopButton.addEventListener("click", () => stopLiveInterview(true));
 elements.retryButton.addEventListener("click", () => {
   if (state.pendingRetry) state.pendingRetry();
 });
@@ -2319,7 +1757,6 @@ elements.downloadReportButton.addEventListener("click", printReportAsPdf);
 elements.shareReportButton.addEventListener("click", shareReportLink);
 
 elements.micButton.addEventListener("click", () => {
-  if (state.liveMode) return;
   if (!state.recognition || state.busy) return;
   if (state.isRecording) {
     state.recognition.stop();
@@ -2343,7 +1780,7 @@ elements.voiceToggle.addEventListener("click", () => {
   elements.voiceToggle.textContent = state.voiceEnabled ? "음성 출력 ON" : "음성 출력 OFF";
   elements.voiceToggle.setAttribute("aria-pressed", String(state.voiceEnabled));
   if (!state.voiceEnabled) {
-    window.speechSynthesis?.cancel();
+    stopTtsPlayback();
   }
   updateMetrics();
 });
@@ -2356,14 +1793,10 @@ elements.answerForm.addEventListener("submit", (event) => {
 elements.reportButton.addEventListener("click", generateReport);
 elements.resetButton.addEventListener("click", resetSession);
 window.addEventListener("beforeunload", () => {
-  stopLiveInterview(false);
+  stopTtsPlayback();
   stopCamera(false);
 });
 window.addEventListener("afterprint", () => document.body.classList.remove("print-report"));
-
-if ("speechSynthesis" in window) {
-  window.speechSynthesis.onvoiceschanged = () => {};
-}
 
 if (!restoreSharedReport()) {
   restoreSession();
@@ -2371,4 +1804,3 @@ if (!restoreSharedReport()) {
 setupSpeechRecognition();
 renderNonverbalScores();
 updateMetrics();
-updateLiveControls();
