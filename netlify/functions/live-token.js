@@ -1,4 +1,17 @@
-const DEFAULT_LIVE_MODEL = "gemini-3.1-flash-live-preview";
+const DEFAULT_LIVE_MODEL = "gemini-3-flash-live";
+const LIVE_MODEL_ALIASES = {
+  "gemini 3 flash live": "gemini-3-flash-live-preview",
+  "gemini-3-flash-live": "gemini-3-flash-live-preview",
+  "gemini-3-flash-live-preview": "gemini-3-flash-live-preview",
+  "gemini 3.1 flash live": "gemini-3.1-flash-live-preview",
+  "gemini 3.1 flash live preview": "gemini-3.1-flash-live-preview",
+  "gemini-3.1-flash-live": "gemini-3.1-flash-live-preview",
+  "gemini-3.1-flash-live-preview": "gemini-3.1-flash-live-preview",
+  "gemini 2.5 flash native audio dialog": "gemini-2.5-flash-native-audio-preview-12-2025",
+  "gemini-2.5-flash-native-audio": "gemini-2.5-flash-native-audio-preview-12-2025",
+  "gemini-2.5-flash-native-audio-preview-12-2025":
+    "gemini-2.5-flash-native-audio-preview-12-2025",
+};
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -83,7 +96,9 @@ async function createLiveToken(model) {
 }
 
 function normalizeModelName(model) {
-  return String(model || DEFAULT_LIVE_MODEL).replace(/^models\//, "");
+  const raw = String(model || DEFAULT_LIVE_MODEL).trim().replace(/^models\//, "");
+  const normalized = raw.toLowerCase().replace(/_/g, "-").replace(/\s+/g, " ");
+  return LIVE_MODEL_ALIASES[normalized] || raw;
 }
 
 function sanitizeError(message) {
