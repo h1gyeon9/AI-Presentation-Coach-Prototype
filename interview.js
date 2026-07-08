@@ -127,20 +127,20 @@ function formatDuration(ms) {
 
 function getReadableError(error) {
   if (error?.name === "AbortError" || error?.code === "TIMEOUT") {
-    return "Gemini 응답 시간이 초과되었습니다. 네트워크 상태를 확인한 뒤 재시도해 주세요.";
+    return "AI 응답 시간이 초과되었습니다. 네트워크 상태를 확인한 뒤 재시도해 주세요.";
   }
   if (error?.code === "MISSING_KEY") {
-    return "Gemini API 키가 설정되지 않았습니다. Netlify 환경변수 GEMINI_API_KEY를 확인해 주세요.";
+    return "AI API 키가 설정되지 않았습니다. Netlify 환경변수를 확인해 주세요.";
   }
   if (error?.status) {
-    return `Gemini API 오류가 발생했습니다. (${error.status}) ${error.message || ""}`.trim();
+    return `AI API 오류가 발생했습니다. (${error.status}) ${error.message || ""}`.trim();
   }
-  return error?.message || "Gemini 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+  return error?.message?.replace(/Gemini/g, "AI") || "AI 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
 function showApiNotice(message, retryFn = null) {
   elements.apiNotice.hidden = false;
-  elements.apiNotice.textContent = `${message} 세션 데이터는 유지됩니다. Gemini 재시도 버튼을 눌러 다시 연결해 보세요.`;
+  elements.apiNotice.textContent = `${message} 세션 데이터는 유지됩니다. AI 재시도 버튼을 눌러 다시 연결해 보세요.`;
   state.pendingRetry = retryFn;
   elements.retryButton.hidden = !retryFn;
   persistSession();
@@ -744,12 +744,12 @@ async function callGemini(mode, payload) {
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error(data.error || "Gemini request failed");
+      const error = new Error(data.error || "AI request failed");
       error.status = response.status;
       error.code = data.code || (response.status === 500 && /GEMINI_API_KEY/.test(data.error || "") ? "MISSING_KEY" : "API_ERROR");
       throw error;
     }
-    setConnection("Gemini 연결됨", "green");
+    setConnection("AI 연결됨", "green");
     hideApiNotice();
     return data;
   } catch (error) {
@@ -796,7 +796,7 @@ async function requestInterviewer(latestAnswer = "") {
     startSilenceTimer(reply);
   } catch (error) {
     const message = getReadableError(error);
-    setConnection("Gemini 연결 실패", "red");
+    setConnection("AI 연결 실패", "red");
     showApiNotice(message, () => requestInterviewer(latestAnswer));
     const reply = fallbackInterviewerQuestion(latestAnswer);
     addMessage("ai", reply);
@@ -1094,7 +1094,7 @@ function localReportHtml(analysis, aiReport = null) {
         aiReport?.languageHabits?.length
           ? `
             <section class="report-block">
-              <h3>Gemini 언어 습관 피드백</h3>
+              <h3>AI 언어 습관 피드백</h3>
               <ul>${list(aiReport.languageHabits, "언어 습관 피드백이 없습니다.")}</ul>
             </section>
           `
@@ -1131,7 +1131,7 @@ function localReportHtml(analysis, aiReport = null) {
         aiReport
           ? `
             <section class="report-block">
-              <h3>Gemini 종합 피드백</h3>
+              <h3>AI 종합 피드백</h3>
               <p>${escapeHtml(aiReport.summary || "종합 피드백을 생성했습니다.")}</p>
               <ul style="margin-top: 12px;">${list(aiReport.strengths, "강점 항목이 별도로 반환되지 않았습니다.")}</ul>
             </section>
@@ -1170,7 +1170,7 @@ function localReportHtml(analysis, aiReport = null) {
               aiReport?.nonverbalFeedback?.length
                 ? `
                   <section class="report-block">
-                    <h3>Gemini 비언어 피드백</h3>
+                    <h3>AI 비언어 피드백</h3>
                     <ul>${list(aiReport.nonverbalFeedback, "비언어 피드백이 없습니다.")}</ul>
                   </section>
                 `
@@ -1245,7 +1245,7 @@ async function generateReport() {
     renderReport(analysis, report);
   } catch (error) {
     const message = getReadableError(error);
-    setConnection("Gemini 리포트 실패", "red");
+    setConnection("AI 리포트 실패", "red");
     showApiNotice(message, generateReport);
   } finally {
     elements.reportButton.textContent = "리포트 생성";
@@ -1342,7 +1342,7 @@ function resetSession() {
   `;
   hideApiNotice();
   setReportActionsEnabled(false);
-  setConnection("Gemini 대기", "blue");
+  setConnection("AI 대기", "blue");
   clearChat();
   sessionStorage.removeItem(SESSION_STORAGE_KEY);
 }

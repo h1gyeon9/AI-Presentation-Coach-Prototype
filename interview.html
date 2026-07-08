@@ -303,7 +303,7 @@
       .conversation-panel {
         min-height: 900px;
         display: grid;
-        grid-template-rows: auto auto minmax(260px, 1fr) auto;
+        grid-template-rows: auto auto minmax(0, 360px) auto;
         overflow: hidden;
       }
 
@@ -375,6 +375,8 @@
       }
 
       .chat-log {
+        min-height: 0;
+        max-height: 360px;
         margin: 0;
         padding: 20px;
         overflow: auto;
@@ -552,6 +554,8 @@
       }
 
       .script-list {
+        max-height: 360px;
+        overflow: auto;
         display: grid;
         gap: 10px;
         margin: 0;
@@ -1026,7 +1030,7 @@
         </div>
         <div class="status-pill" id="connectionPill">
           <span class="status-dot" aria-hidden="true"></span>
-          <span id="connectionText">Gemini 대기</span>
+          <span id="connectionText">AI 대기</span>
         </div>
       </header>
 
@@ -1034,7 +1038,7 @@
         <aside class="setup-panel" aria-labelledby="setupTitle">
           <h1 class="panel-title" id="setupTitle">면접 설정</h1>
           <p class="panel-caption">
-            입력값은 프로토타입 기준이며, Gemini 연결 시 질문 맥락으로 전달됩니다.
+            입력값은 프로토타입 기준이며, AI 연결 시 질문 맥락으로 전달됩니다.
           </p>
 
           <form class="form-grid" id="setupForm">
@@ -1221,7 +1225,7 @@
               리포트 생성
             </button>
             <button class="secondary-button" id="retryButton" type="button" hidden>
-              Gemini 재시도
+              AI 재시도
             </button>
             <button class="secondary-button" id="downloadReportButton" type="button" disabled>
               PDF 저장
