@@ -682,6 +682,12 @@ function localReportHtml(analysis, aiReport = null) {
         <p>${escapeHtml(aiReport.summary || "종합 피드백을 생성했습니다.")}</p>
       </section>
       <section class="report-block">
+        <h3>강점</h3>
+        <ul>
+          ${(aiReport.strengths || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </section>
+      <section class="report-block">
         <h3>보완할 점</h3>
         <ul>
           ${(aiReport.improvements || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}

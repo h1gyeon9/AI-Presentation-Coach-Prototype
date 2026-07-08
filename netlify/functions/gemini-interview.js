@@ -124,6 +124,12 @@ function buildTurnInput(payload) {
 
 function buildReportInput(payload) {
   const profile = payload.profile || {};
+  const conversation = (payload.messages || [])
+    .map((message, index) => {
+      const speaker = message.role === "ai" ? "면접관" : "지원자";
+      return `${index + 1}. ${speaker}: ${message.text}`;
+    })
+    .join("\n");
   const answers = (payload.answers || [])
     .map((answer, index) => `${index + 1}. ${answer}`)
     .join("\n");
@@ -133,12 +139,21 @@ function buildReportInput(payload) {
     `회사: ${profile.company || "미입력"}`,
     `직무: ${profile.role || "미입력"}`,
     `인재상: ${profile.talent || "미입력"}`,
+    `자기소개서 파일: ${profile.resumeName || "없음"}`,
+    `자기소개서 발췌: ${profile.resumeText || "없음"}`,
     "",
     "[로컬 분석]",
     JSON.stringify(payload.localAnalysis || {}),
     "",
-    "[지원자 답변]",
+    "[전체 면접 대화 기록]",
+    conversation || "대화 기록 없음",
+    "",
+    "[지원자 답변만 모아보기]",
     answers || "답변 없음",
+    "",
+    "면접관 질문의 의도와 지원자 답변의 대응력을 함께 평가하세요.",
+    "로컬 분석은 참고 자료이며, 최종 피드백은 대화 기록을 우선해서 판단하세요.",
+    "비언어 분석은 프로토타입 시뮬레이션 값이므로 확정 진단처럼 말하지 말고 완곡하게 표현하세요.",
     "",
     "다음 JSON 스키마로만 반환하세요.",
     "{\"summary\":\"2문장 종합평\",\"strengths\":[\"강점1\",\"강점2\"],\"improvements\":[\"보완점1\",\"보완점2\",\"보완점3\"],\"practicePlan\":[\"연습1\",\"연습2\",\"연습3\"]}",
