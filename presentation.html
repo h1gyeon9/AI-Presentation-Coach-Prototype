@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Presentation Coach</title>
+    <link rel="stylesheet" href="./presentation.css" />
+  </head>
+  <body>
+    <div class="dashboard-shell">
+      <header class="dashboard-header">
+        <a class="back-link" href="./index.html">&lt; 코칭 선택</a>
+        <div class="header-title">
+          <h1>AI Presentation Coach</h1>
+          <p>대본 · 음성 · 영상 발표 연습 프로토타입</p>
+        </div>
+        <span class="status-badge" id="status-badge">Gemini 대기</span>
+      </header>
+
+      <div class="dashboard-grid">
+        <aside class="panel settings-panel">
+          <h2>발표 설정</h2>
+          <p class="panel-desc">
+            입력값은 프로토타입 기준이며, Gemini 분석 요청에 함께 전달됩니다.
+          </p>
+
+          <label for="audience-select">청중 유형 <span class="required-tag">필수</span></label>
+          <select id="audience-select">
+            <option value="" disabled selected>선택하세요</option>
+            <option value="general">일반 청중</option>
+            <option value="professor">교수/평가자</option>
+            <option value="team">팀원/스터디</option>
+            <option value="interviewer">면접관</option>
+            <option value="investor">IR 투자자</option>
+          </select>
+
+          <label for="mode-select">연습 방식</label>
+          <select id="mode-select">
+            <option value="script">스크립트</option>
+            <option value="record">음성 및 영상</option>
+          </select>
+
+          <button type="button" id="start-btn" class="primary-btn">발표 연습 시작</button>
+        </aside>
+
+        <section class="panel practice-panel">
+          <div class="practice-topbar">
+            <div class="coach-id">
+              <span class="coach-avatar" aria-hidden="true">AI</span>
+              <div>
+                <strong>AI 발표 코치</strong>
+                <p id="coach-status-line">설정을 완료하고 연습을 시작하세요.</p>
+              </div>
+            </div>
+            <div class="stat-chips">
+              <div class="stat-chip">
+                <span id="stat-mode">스크립트</span>
+                <small>모드</small>
+              </div>
+              <div class="stat-chip">
+                <span id="stat-time">0:00</span>
+                <small>녹음 시간</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="script-panel" id="script-panel" hidden>
+            <h3>대본 입력</h3>
+            <div id="script-slot-main">
+              <textarea
+                id="script-text"
+                rows="14"
+                placeholder="발표할 대본을 입력하세요."
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="analysis-block" id="analysis-block">
+            <div class="analysis-header">
+              <div>
+                <h3>비언어 분석</h3>
+                <p>시선, 자세, 표정, 제스처 신호</p>
+              </div>
+              <span class="demo-badge">데모</span>
+            </div>
+
+            <div class="analysis-body">
+              <div class="cam-box" id="cam-box">
+                <video id="video-live" autoplay muted playsinline hidden></video>
+                <video id="video-preview" controls hidden></video>
+                <audio id="audio-preview" controls hidden></audio>
+                <span class="cam-placeholder" id="cam-placeholder">CAM</span>
+                <span class="cam-caption" id="cam-caption">연습을 시작하면 여기에 표시됩니다</span>
+              </div>
+
+              <div class="analysis-side">
+                <div class="cam-controls">
+                  <input type="file" id="media-file" hidden />
+                  <button type="button" id="camera-toggle-btn" class="ghost-btn-lg">
+                    카메라 켜기
+                  </button>
+                  <button type="button" id="record-btn" class="ghost-btn-lg">
+                    ● 레코딩 시작
+                  </button>
+                  <button type="button" id="upload-btn" class="ghost-btn-lg">
+                    파일 업로드
+                  </button>
+                  <button type="button" id="retake-btn" class="ghost-btn-lg" hidden>다시 찍기</button>
+                  <button type="button" id="reset-btn" class="ghost-btn-lg danger" hidden>초기화</button>
+                </div>
+
+                <div class="metric-bars" id="metric-bars" hidden>
+                  <div class="metric-row">
+                    <span>시선</span>
+                    <div class="bar"><div class="bar-fill" id="bar-eye"></div></div>
+                    <b id="score-eye">-</b>
+                  </div>
+                  <div class="metric-row">
+                    <span>자세</span>
+                    <div class="bar"><div class="bar-fill" id="bar-posture"></div></div>
+                    <b id="score-posture">-</b>
+                  </div>
+                  <div class="metric-row">
+                    <span>표정</span>
+                    <div class="bar"><div class="bar-fill" id="bar-expression"></div></div>
+                    <b id="score-expression">-</b>
+                  </div>
+                  <div class="metric-row">
+                    <span>제스처</span>
+                    <div class="bar"><div class="bar-fill" id="bar-gesture"></div></div>
+                    <b id="score-gesture">-</b>
+                  </div>
+                </div>
+
+                <ul class="event-log" id="event-log">
+                  <li>연습을 시작하면 여기에 감지 로그가 표시됩니다.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="script-optional-panel" id="script-optional-panel" hidden>
+            <h3>대본 <span class="optional-tag">(선택)</span></h3>
+            <div id="script-slot-optional"></div>
+          </div>
+
+          <div class="coach-feedback">
+            <h3>AI 코치</h3>
+            <div id="coach-feedback-content">
+              <p class="result-placeholder">
+                오른쪽 "리포트 생성"을 누르면 분석 결과가 이곳과 리포트에 표시됩니다.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <aside class="panel report-panel">
+          <h2>발표 리포트</h2>
+          <p class="panel-desc">분석 결과를 기반으로 개선 포인트를 정리합니다.</p>
+          <div class="report-actions">
+            <button type="button" id="generate-report-btn" class="primary-btn" disabled>
+              리포트 생성
+            </button>
+            <button type="button" id="reset-report-btn" class="ghost-btn-lg">초기화</button>
+          </div>
+          <p class="report-hint" id="report-hint">왼쪽에서 청중 유형을 먼저 선택해주세요.</p>
+          <div class="report-content" id="report-content">
+            <p class="result-placeholder">
+              연습을 시작하고 리포트를 생성하면 이곳에 표시됩니다.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <script src="./presentation.js"></script>
+  </body>
+</html>
