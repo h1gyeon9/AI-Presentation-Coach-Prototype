@@ -947,8 +947,40 @@ function handleLiveStartupError(error) {
   showApiNotice(message, startLiveInterview);
 }
 
+function getJsonObjectKeys(rawMessage) {
+  try {
+    return Object.keys(JSON.parse(rawMessage));
+  } catch (error) {
+    return ["unparseable"];
+  }
+}
+
 async function connectLiveSocket(attempt = 0) {
   const variant = getLiveSetupVariant(attempt);
+  const canRetry = attempt < LIVE_SETUP_VARIANTS.length - 1;
+  let setupTimer = null;
+  const clearSetupTimer = () => {
+    window.clearTimeout(setupTimer);
+    setupTimer = null;
+  };
+  const retryWithNextSetup = (reason) => {
+    if (!canRetry) return false;
+    const nextAttempt = attempt + 1;
+    const nextVariant = getLiveSetupVariant(nextAttempt);
+    console.info("[AI Live] retrying setup with reduced fields", {
+      reason,
+      nextVariant,
+      nextAttempt: nextAttempt + 1,
+    });
+    clearSetupTimer();
+    if (state.liveSocket === socket) {
+      state.liveSocket = null;
+    }
+    state.liveReady = false;
+    updateLiveControls();
+    connectLiveSocket(nextAttempt).catch(handleLiveStartupError);
+    return true;
+  };
   state.liveSetupAttempt = attempt;
   state.liveSetupVariant = variant;
 
@@ -975,9 +1007,31 @@ async function connectLiveSocket(attempt = 0) {
       fields: Object.keys(setupMessage.setup),
     });
     sendLiveMessage(setupMessage);
+    setupTimer = window.setTimeout(() => {
+      if (state.liveSocket !== socket || state.liveSetupComplete) return;
+      console.warn("[AI Live] setup timed out", {
+        setupVariant: variant,
+        attempt: attempt + 1,
+      });
+      socket.onclose = null;
+      socket.onerror = null;
+      socket.close();
+      if (!retryWithNextSetup("setup timeout")) {
+        cleanupLiveConnection();
+        setLiveStatus("AI 음성 세션 설정 응답이 지연되고 있습니다. 다시 시도해 주세요.", "error");
+        setConnection("AI Live 실패", "red");
+        showApiNotice("AI 음성 세션 설정 응답이 지연되고 있습니다. AI 재시도 버튼을 눌러 다시 연결해 보세요.", startLiveInterview);
+      }
+    }, 8000);
   };
 
   socket.onmessage = (event) => {
+    if (!state.liveSetupComplete) {
+      console.info("[AI Live] message received before setup complete", {
+        setupVariant: variant,
+        keys: getJsonObjectKeys(event.data),
+      });
+    }
     handleLiveMessage(event.data);
   };
 
@@ -988,6 +1042,7 @@ async function connectLiveSocket(attempt = 0) {
   };
 
   socket.onclose = (event) => {
+    clearSetupTimer();
     const wasManual = state.liveManualClose;
     console.warn("[AI Live] websocket closed", {
       code: event.code,
@@ -1002,20 +1057,10 @@ async function connectLiveSocket(attempt = 0) {
     const shouldRetrySetup =
       !wasManual &&
       !state.liveSetupComplete &&
-      attempt < LIVE_SETUP_VARIANTS.length - 1 &&
+      canRetry &&
       (event.code === 1007 || event.code === 1008);
 
-    if (shouldRetrySetup) {
-      const nextAttempt = attempt + 1;
-      const nextVariant = getLiveSetupVariant(nextAttempt);
-      console.info("[AI Live] retrying setup with reduced fields", {
-        nextVariant,
-        nextAttempt: nextAttempt + 1,
-      });
-      state.liveSocket = null;
-      state.liveReady = false;
-      updateLiveControls();
-      connectLiveSocket(nextAttempt).catch(handleLiveStartupError);
+    if (shouldRetrySetup && retryWithNextSetup(`websocket ${event.code}: ${event.reason || "no reason"}`)) {
       return;
     }
 
@@ -1107,7 +1152,7 @@ function handleLiveMessage(rawMessage) {
     return;
   }
 
-  if (response.setupComplete) {
+  if (Object.prototype.hasOwnProperty.call(response, "setupComplete")) {
     state.liveReady = true;
     state.liveSetupComplete = true;
     console.info("[AI Live] setup complete", {
@@ -1133,8 +1178,25 @@ function handleLiveMessage(rawMessage) {
     return;
   }
 
+  if (response.error) {
+    console.error("[AI Live] server error message", response.error);
+    setLiveStatus("AI Live 서버 오류가 발생했습니다. 다시 시도해 주세요.", "error");
+    return;
+  }
+
+  if (response.goAway) {
+    console.warn("[AI Live] server requested disconnect", response.goAway);
+  }
+
+  if (response.sessionResumptionUpdate) {
+    console.info("[AI Live] session resumption update", response.sessionResumptionUpdate);
+  }
+
   const serverContent = response.serverContent;
-  if (!serverContent) return;
+  if (!serverContent) {
+    console.info("[AI Live] unhandled message", { keys: Object.keys(response) });
+    return;
+  }
 
   if (serverContent.inputTranscription?.text) {
     if (!state.currentAnswerStartedAt) markAnswerStarted("live-voice");
