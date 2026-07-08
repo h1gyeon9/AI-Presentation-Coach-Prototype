@@ -448,6 +448,39 @@
         align-items: center;
       }
 
+      .live-mode-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .live-status {
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+        padding: 9px 12px;
+        border: 1px solid rgba(49, 87, 201, 0.18);
+        border-radius: 8px;
+        background: rgba(49, 87, 201, 0.06);
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.45;
+      }
+
+      .live-status.is-live {
+        border-color: rgba(31, 122, 91, 0.32);
+        background: rgba(31, 122, 91, 0.08);
+        color: var(--green);
+      }
+
+      .live-status.is-error {
+        border-color: rgba(180, 35, 24, 0.26);
+        background: rgba(180, 35, 24, 0.08);
+        color: var(--red);
+      }
+
       .live-transcript {
         min-height: 46px;
         display: flex;
@@ -976,6 +1009,7 @@
         }
 
         .speech-row,
+        .live-mode-row,
         .answer-form,
         .report-actions,
         .report-tabs,
@@ -1197,6 +1231,18 @@
                 aria-pressed="true"
               >
                 음성 출력 ON
+              </button>
+            </div>
+
+            <div class="live-mode-row">
+              <div class="live-status" id="liveStatus">
+                기본 음성 모드입니다. 실시간 모드를 켜면 AI와 바로 말로 주고받습니다.
+              </div>
+              <button class="secondary-button" id="liveStartButton" type="button">
+                실시간 음성 면접
+              </button>
+              <button class="secondary-button" id="liveStopButton" type="button" disabled>
+                종료
               </button>
             </div>
 
