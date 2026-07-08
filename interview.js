@@ -1,6 +1,10 @@
 const API_ENDPOINT = "/.netlify/functions/gemini-interview";
+const DOCUMENT_ENDPOINT = "/.netlify/functions/parse-document";
 const NONVERBAL_TICK_MS = 1600;
 const NONVERBAL_LOG_EVERY_TICKS = 5;
+const SILENCE_PROMPT_MS = 10000;
+const SESSION_STORAGE_KEY = "interviewCoachSession.v2";
+const SHARED_REPORT_PREFIX = "interviewCoachSharedReport.";
 
 const personaLabels = {
   calm: "차분한 구조화 면접관",
@@ -25,10 +29,20 @@ const state = {
   resumeName: "",
   messages: [],
   answers: [],
+  answerMeta: [],
   recognition: null,
   recognitionSupported: false,
   isRecording: false,
   pendingVoiceText: "",
+  textInputMode: false,
+  questionStartedAt: null,
+  currentAnswerStartedAt: null,
+  currentInputMode: "text",
+  silenceTimer: null,
+  silenceEvents: [],
+  pendingRetry: null,
+  lastReport: null,
+  activeReportTab: "language",
   cameraStream: null,
   cameraActive: false,
   nonverbalTimer: null,
@@ -64,7 +78,11 @@ const elements = {
   answerInput: $("#answerInput"),
   sendButton: $("#sendButton"),
   reportButton: $("#reportButton"),
+  retryButton: $("#retryButton"),
+  downloadReportButton: $("#downloadReportButton"),
+  shareReportButton: $("#shareReportButton"),
   resetButton: $("#resetButton"),
+  apiNotice: $("#apiNotice"),
   reportContent: $("#reportContent"),
   personaSummary: $("#personaSummary"),
   turnMetric: $("#turnMetric"),
@@ -98,6 +116,48 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+function formatDuration(ms) {
+  if (!ms || ms < 0) return "0초";
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds}초`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${minutes}분 ${rest}초`;
+}
+
+function getReadableError(error) {
+  if (error?.name === "AbortError" || error?.code === "TIMEOUT") {
+    return "Gemini 응답 시간이 초과되었습니다. 네트워크 상태를 확인한 뒤 재시도해 주세요.";
+  }
+  if (error?.code === "MISSING_KEY") {
+    return "Gemini API 키가 설정되지 않았습니다. Netlify 환경변수 GEMINI_API_KEY를 확인해 주세요.";
+  }
+  if (error?.status) {
+    return `Gemini API 오류가 발생했습니다. (${error.status}) ${error.message || ""}`.trim();
+  }
+  return error?.message || "Gemini 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+}
+
+function showApiNotice(message, retryFn = null) {
+  elements.apiNotice.hidden = false;
+  elements.apiNotice.textContent = `${message} 세션 데이터는 유지됩니다. Gemini 재시도 버튼을 눌러 다시 연결해 보세요.`;
+  state.pendingRetry = retryFn;
+  elements.retryButton.hidden = !retryFn;
+  persistSession();
+}
+
+function hideApiNotice() {
+  elements.apiNotice.hidden = true;
+  elements.apiNotice.textContent = "";
+  state.pendingRetry = null;
+  elements.retryButton.hidden = true;
+}
+
+function setReportActionsEnabled(enabled) {
+  elements.downloadReportButton.disabled = !enabled;
+  elements.shareReportButton.disabled = !enabled;
+}
+
 function getProfile() {
   return {
     company: elements.companyInput.value.trim() || "미입력 회사",
@@ -128,6 +188,117 @@ function updateMetrics() {
   elements.fillerMetric.textContent = String(analysis.fillerTotal);
   elements.voiceMetric.textContent = state.voiceEnabled ? "ON" : "OFF";
   elements.reportButton.disabled = state.answers.length === 0;
+}
+
+function persistSession() {
+  const payload = {
+    inputs: {
+      company: elements.companyInput.value,
+      role: elements.roleInput.value,
+      talent: elements.talentInput.value,
+      persona: elements.personaInput.value,
+      depth: elements.depthInput.value,
+    },
+    resumeName: state.resumeName,
+    resumeText: state.resumeText,
+    messages: state.messages,
+    answers: state.answers,
+    answerMeta: state.answerMeta,
+    silenceEvents: state.silenceEvents,
+    lastReport: state.lastReport,
+    activeReportTab: state.activeReportTab,
+  };
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    // Session persistence is helpful, but the prototype should keep running if storage is blocked.
+  }
+}
+
+function renderMessages() {
+  elements.chatLog.innerHTML = "";
+  if (!state.messages.length) {
+    addMessage("ai", "면접 시작을 누르면 회사, 직무, 인재상에 맞춰 첫 질문을 드립니다.", false);
+    state.messages = [];
+    return;
+  }
+
+  state.messages.forEach((message) => {
+    const item = document.createElement("li");
+    item.className = `message ${message.role}`;
+    item.innerHTML = `
+      <span class="message-label">${message.role === "ai" ? "AI 면접관" : "나"}</span>
+      <div class="message-bubble">${escapeHtml(message.text)}</div>
+    `;
+    elements.chatLog.appendChild(item);
+  });
+  elements.chatLog.scrollTop = elements.chatLog.scrollHeight;
+}
+
+function restoreSession() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY) || "null");
+    if (!saved) return;
+
+    elements.companyInput.value = saved.inputs?.company || elements.companyInput.value;
+    elements.roleInput.value = saved.inputs?.role || elements.roleInput.value;
+    elements.talentInput.value = saved.inputs?.talent || elements.talentInput.value;
+    elements.personaInput.value = saved.inputs?.persona || elements.personaInput.value;
+    elements.depthInput.value = saved.inputs?.depth || elements.depthInput.value;
+    elements.depthOutput.textContent = elements.depthInput.value;
+
+    state.resumeName = saved.resumeName || "";
+    state.resumeText = saved.resumeText || "";
+    elements.fileName.textContent = state.resumeName || "선택된 파일 없음";
+    state.messages = saved.messages || [];
+    state.answers = saved.answers || [];
+    state.answerMeta = saved.answerMeta || [];
+    state.silenceEvents = saved.silenceEvents || [];
+    state.lastReport = saved.lastReport || null;
+    state.activeReportTab = saved.activeReportTab || "language";
+    state.started = state.messages.length > 0 || state.answers.length > 0;
+
+    renderMessages();
+    if (state.lastReport) {
+      renderReport(state.lastReport.analysis, state.lastReport.aiReport);
+      setReportActionsEnabled(true);
+    }
+    updateMetrics();
+  } catch (error) {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  }
+}
+
+function clearSilenceTimer() {
+  window.clearTimeout(state.silenceTimer);
+  state.silenceTimer = null;
+}
+
+function startSilenceTimer(questionText = "") {
+  clearSilenceTimer();
+  state.questionStartedAt = Date.now();
+  state.currentAnswerStartedAt = null;
+  state.currentInputMode = "text";
+
+  state.silenceTimer = window.setTimeout(() => {
+    if (!state.started || state.busy || state.currentAnswerStartedAt) return;
+    const event = {
+      at: Date.now(),
+      seconds: Math.round(SILENCE_PROMPT_MS / 1000),
+      question: questionText,
+    };
+    state.silenceEvents.push(event);
+    elements.liveTranscript.textContent = "답변 준비가 되셨나요? 준비되면 음성 또는 텍스트로 답변해 주세요.";
+    persistSession();
+  }, SILENCE_PROMPT_MS);
+}
+
+function markAnswerStarted(mode) {
+  if (!state.currentAnswerStartedAt) {
+    state.currentAnswerStartedAt = Date.now();
+    state.currentInputMode = mode;
+  }
+  clearSilenceTimer();
 }
 
 function clampScore(value) {
@@ -354,17 +525,18 @@ function setBusy(isBusy) {
   elements.startButton.disabled = isBusy;
   elements.sendButton.disabled = isBusy || !state.started;
   elements.answerInput.disabled = isBusy || !state.started;
-  elements.micButton.disabled = isBusy || !state.started || !state.recognitionSupported;
+  elements.micButton.disabled =
+    isBusy || !state.started || !state.recognitionSupported || state.textInputMode;
   if (isBusy) {
     elements.liveTranscript.textContent = "AI 면접관이 다음 질문을 준비 중입니다.";
   } else if (state.started) {
-    elements.liveTranscript.textContent = state.recognitionSupported
+    elements.liveTranscript.textContent = state.recognitionSupported && !state.textInputMode
       ? "REC 버튼을 눌러 답변하세요."
-      : "이 브라우저는 음성 인식을 지원하지 않습니다. 직접 입력으로 답변하세요.";
+      : "텍스트 입력 모드입니다. 답변을 입력한 뒤 전송하세요.";
   }
 }
 
-function addMessage(role, text) {
+function addMessage(role, text, shouldPersist = true) {
   state.messages.push({ role, text });
   const item = document.createElement("li");
   item.className = `message ${role}`;
@@ -374,15 +546,21 @@ function addMessage(role, text) {
   `;
   elements.chatLog.appendChild(item);
   elements.chatLog.scrollTop = elements.chatLog.scrollHeight;
+  if (shouldPersist) persistSession();
 }
 
 function clearChat() {
   state.messages = [];
   state.answers = [];
+  state.answerMeta = [];
+  state.silenceEvents = [];
+  state.lastReport = null;
   elements.chatLog.innerHTML = "";
   addMessage("ai", "면접 시작을 누르면 회사, 직무, 인재상에 맞춰 첫 질문을 드립니다.");
   state.messages = [];
   updateMetrics();
+  setReportActionsEnabled(false);
+  persistSession();
 }
 
 function speak(text) {
@@ -400,14 +578,22 @@ function speak(text) {
   window.speechSynthesis.speak(utterance);
 }
 
+function switchToTextMode(message) {
+  state.textInputMode = true;
+  elements.micButton.disabled = true;
+  elements.answerInput.disabled = !state.started;
+  elements.sendButton.disabled = !state.started;
+  elements.liveTranscript.textContent = message;
+  persistSession();
+}
+
 function setupSpeechRecognition() {
   const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
   state.recognitionSupported = Boolean(SpeechRecognition);
 
   if (!SpeechRecognition) {
-    elements.liveTranscript.textContent =
-      "이 브라우저는 음성 인식을 지원하지 않습니다. 직접 입력으로 답변하세요.";
+    switchToTextMode("이 브라우저는 음성 인식을 지원하지 않습니다. 텍스트 입력 모드로 전환합니다.");
     return;
   }
 
@@ -419,6 +605,7 @@ function setupSpeechRecognition() {
   recognition.onstart = () => {
     state.isRecording = true;
     state.pendingVoiceText = "";
+    markAnswerStarted("voice");
     elements.micButton.classList.add("mic-active");
     elements.micButton.textContent = "STOP";
     elements.liveTranscript.classList.add("mic-active");
@@ -442,10 +629,12 @@ function setupSpeechRecognition() {
   };
 
   recognition.onerror = (event) => {
-    elements.liveTranscript.textContent =
-      event.error === "not-allowed"
-        ? "마이크 권한이 필요합니다."
-        : "음성 인식이 중단되었습니다. 다시 시도하세요.";
+    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      switchToTextMode("마이크 권한이 허용되지 않아 텍스트 입력 모드로 자동 전환했습니다.");
+      return;
+    }
+
+    elements.liveTranscript.textContent = "음성 인식이 중단되었습니다. 다시 시도하거나 직접 입력하세요.";
   };
 
   recognition.onend = () => {
@@ -479,15 +668,66 @@ async function readResumeFile(file) {
     file.name.toLowerCase().endsWith(".md");
 
   if (!textLike) {
-    state.resumeText = `[첨부 파일: ${file.name}]`;
+    const lowerName = file.name.toLowerCase();
+    const supportedDocument = lowerName.endsWith(".pdf") || lowerName.endsWith(".docx");
+    if (!supportedDocument) {
+      state.resumeText = `[지원하지 않는 첨부 파일 형식: ${file.name}]`;
+      elements.fileName.textContent = `${file.name} · 지원 형식은 PDF, DOCX, TXT, MD입니다.`;
+      persistSession();
+      return;
+    }
+
+    elements.fileName.textContent = `${file.name} · 텍스트 추출 중`;
+    try {
+      const parsed = await parseResumeDocument(file);
+      state.resumeText = parsed.text || `[첨부 파일: ${file.name}]`;
+      elements.fileName.textContent = `${file.name} · ${parsed.method || "텍스트 추출 완료"}`;
+    } catch (error) {
+      state.resumeText = `[첨부 파일: ${file.name}]`;
+      elements.fileName.textContent = `${file.name} · Netlify 배포 후 PDF/DOCX 텍스트 추출 가능`;
+      showApiNotice("자기소개서 텍스트 추출 함수에 연결하지 못했습니다.", () => readResumeFile(file));
+    }
+    persistSession();
     return;
   }
 
   try {
     state.resumeText = await file.text();
+    elements.fileName.textContent = `${file.name} · 텍스트 추출 완료`;
   } catch (error) {
     state.resumeText = `[첨부 파일을 읽지 못했습니다: ${file.name}]`;
   }
+  persistSession();
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      resolve(result.includes(",") ? result.split(",")[1] : result);
+    };
+    reader.onerror = () => reject(reader.error || new Error("파일을 읽지 못했습니다."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function parseResumeDocument(file) {
+  const base64 = await fileToBase64(file);
+  const response = await fetch(DOCUMENT_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filename: file.name,
+      contentType: file.type,
+      data: base64,
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || "문서 파싱 실패");
+  }
+  return data;
 }
 
 async function callGemini(mode, payload) {
@@ -504,10 +744,19 @@ async function callGemini(mode, payload) {
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(data.error || "Gemini request failed");
+      const error = new Error(data.error || "Gemini request failed");
+      error.status = response.status;
+      error.code = data.code || (response.status === 500 && /GEMINI_API_KEY/.test(data.error || "") ? "MISSING_KEY" : "API_ERROR");
+      throw error;
     }
     setConnection("Gemini 연결됨", "green");
+    hideApiNotice();
     return data;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      error.code = "TIMEOUT";
+    }
+    throw error;
   } finally {
     window.clearTimeout(timeoutId);
   }
@@ -531,6 +780,7 @@ function fallbackInterviewerQuestion(latestAnswer) {
 
 async function requestInterviewer(latestAnswer = "") {
   setBusy(true);
+  clearSilenceTimer();
   const profile = getProfile();
   elements.personaSummary.textContent = `${profile.company} · ${profile.role} · ${profile.personaLabel}`;
 
@@ -543,14 +793,19 @@ async function requestInterviewer(latestAnswer = "") {
     const reply = data.reply || data.text || fallbackInterviewerQuestion(latestAnswer);
     addMessage("ai", reply);
     speak(reply);
+    startSilenceTimer(reply);
   } catch (error) {
-    setConnection("로컬 모의 응답", "amber");
+    const message = getReadableError(error);
+    setConnection("Gemini 연결 실패", "red");
+    showApiNotice(message, () => requestInterviewer(latestAnswer));
     const reply = fallbackInterviewerQuestion(latestAnswer);
     addMessage("ai", reply);
     speak(reply);
+    startSilenceTimer(reply);
   } finally {
     setBusy(false);
     updateMetrics();
+    persistSession();
   }
 }
 
@@ -559,16 +814,23 @@ async function startInterview() {
   window.speechSynthesis?.cancel();
   state.started = true;
   state.answers = [];
+  state.answerMeta = [];
   state.messages = [];
+  state.silenceEvents = [];
+  state.lastReport = null;
+  state.activeReportTab = "language";
   elements.chatLog.innerHTML = "";
   elements.reportContent.innerHTML = `
     <div class="empty-state">답변을 한 번 이상 전송하면 리포트를 만들 수 있습니다.</div>
   `;
+  hideApiNotice();
+  setReportActionsEnabled(false);
   elements.answerInput.value = "";
   elements.answerInput.disabled = false;
   elements.sendButton.disabled = false;
-  elements.micButton.disabled = !state.recognitionSupported;
+  elements.micButton.disabled = !state.recognitionSupported || state.textInputMode;
   updateMetrics();
+  persistSession();
   await requestInterviewer("");
 }
 
@@ -578,15 +840,112 @@ async function handleAnswer(rawText) {
   if (!state.started) {
     state.started = true;
   }
+  const answeredAt = Date.now();
+  const startedAt = state.currentAnswerStartedAt || answeredAt;
+  const durationMs = Math.max(1000, answeredAt - startedAt);
+  const latencyMs = state.questionStartedAt ? Math.max(0, startedAt - state.questionStartedAt) : 0;
   elements.answerInput.value = "";
+  clearSilenceTimer();
   addMessage("user", text);
   state.answers.push(text);
+  state.answerMeta.push({
+    text,
+    mode: state.currentInputMode || "text",
+    startedAt,
+    endedAt: answeredAt,
+    durationMs,
+    latencyMs,
+  });
+  state.currentAnswerStartedAt = null;
+  state.currentInputMode = "text";
   updateMetrics();
+  persistSession();
   await requestInterviewer(text);
 }
 
 function countMatches(text, regex) {
   return (text.match(regex) || []).length;
+}
+
+function topCountItems(items, limit) {
+  return items
+    .filter((item) => item.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+function getRepeatedExpressions(text) {
+  const stopwords = new Set(["그리고", "그래서", "저는", "제가", "이", "그", "좀", "더", "수", "것", "때", "를", "을"]);
+  const words = text
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 2 && !stopwords.has(word));
+  const counts = new Map();
+
+  words.forEach((word) => counts.set(word, (counts.get(word) || 0) + 1));
+  for (let i = 0; i < words.length - 1; i += 1) {
+    const phrase = `${words[i]} ${words[i + 1]}`;
+    counts.set(phrase, (counts.get(phrase) || 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .filter((item) => item.count > 1)
+    .sort((a, b) => b.count - a.count || a.label.length - b.label.length)
+    .slice(0, 5);
+}
+
+function getConversationPairs() {
+  const pairs = [];
+  let currentQuestion = null;
+
+  state.messages.forEach((message) => {
+    if (message.role === "ai") {
+      currentQuestion = message.text;
+      return;
+    }
+    if (message.role === "user") {
+      pairs.push({
+        question: currentQuestion || "질문 기록 없음",
+        answer: message.text,
+      });
+      currentQuestion = null;
+    }
+  });
+
+  return pairs;
+}
+
+function evaluateAnswer(answer) {
+  const logic = countMatches(answer, /(왜냐하면|따라서|그래서|결과적으로|예를 들어|첫째|둘째|근거|문제|해결|결과|배운)/g);
+  const evidence = countMatches(answer, /(\d+|퍼센트|%|명|건|회|개월|주|매출|전환|유지율|시간|비용)/g);
+  const roleSignal = countMatches(answer, /(제가|저는|맡아|주도|기여|설계|분석|제안|개선|협업)/g);
+  const score = Math.min(100, Math.round(35 + logic * 12 + evidence * 14 + roleSignal * 7 + answer.length / 12));
+  const feedback = [];
+
+  if (logic === 0) feedback.push("상황-행동-결과의 연결어가 부족합니다.");
+  if (evidence === 0) feedback.push("성과를 보여줄 수치나 규모가 부족합니다.");
+  if (roleSignal === 0) feedback.push("본인이 직접 맡은 역할이 더 분명해야 합니다.");
+  if (!feedback.length) feedback.push("질문 의도에 맞춰 구조와 근거가 비교적 잘 드러납니다.");
+
+  return { score, feedback };
+}
+
+function getJobFitMappings() {
+  const profile = getProfile();
+  const source = `${profile.role} ${profile.talent}`;
+  const keywords = source
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((word) => word.length >= 2)
+    .slice(0, 12);
+  const joined = state.answers.join(" ");
+
+  return keywords.slice(0, 8).map((keyword) => ({
+    keyword,
+    matched: joined.includes(keyword),
+  }));
 }
 
 function analyzeAnswers() {
@@ -603,6 +962,19 @@ function analyzeAnswers() {
   ].map(([label, regex]) => ({ label, count: countMatches(joined, regex) }));
 
   const fillerTotal = fillerItems.reduce((sum, item) => sum + item.count, 0);
+  const repeatedExpressions = getRepeatedExpressions(joined);
+  const answerDurations = state.answerMeta.map((item) => item.durationMs).filter(Boolean);
+  const avgAnswerTimeMs = answerDurations.length ? average(answerDurations) : 0;
+  const avgLatencyMs = state.answerMeta.length
+    ? average(state.answerMeta.map((item) => item.latencyMs || 0))
+    : 0;
+  const conversationPairs = getConversationPairs();
+  const questionEvaluations = conversationPairs.map((pair, index) => ({
+    index: index + 1,
+    question: pair.question,
+    answer: pair.answer,
+    ...evaluateAnswer(pair.answer),
+  }));
   const wordCount = joined.trim() ? joined.trim().split(/\s+/).length : 0;
   const avgLength = state.answers.length
     ? Math.round(joined.length / state.answers.length)
@@ -622,8 +994,17 @@ function analyzeAnswers() {
 
   return {
     fillerItems,
+    topFillers: topCountItems(fillerItems, 3),
     fillerTotal,
     fillerRate,
+    repeatedExpressions,
+    avgAnswerTimeMs,
+    avgLatencyMs,
+    silenceEvents: state.silenceEvents,
+    answerMeta: state.answerMeta,
+    conversationPairs,
+    questionEvaluations,
+    jobFitMappings: getJobFitMappings(),
     wordCount,
     avgLength,
     logicSignals,
@@ -636,108 +1017,201 @@ function analyzeAnswers() {
 }
 
 function localReportHtml(analysis, aiReport = null) {
-  const frequentFillers = analysis.fillerItems
-    .filter((item) => item.count > 0)
-    .sort((a, b) => b.count - a.count)
-    .map((item) => `<span class="badge">${escapeHtml(item.label)} ${item.count}회</span>`)
+  const active = state.activeReportTab || "language";
+  const tabClass = (name) => (active === name ? "is-active" : "");
+  const panelAttrs = (name) =>
+    `class="report-tab-panel ${tabClass(name)}" data-report-panel="${name}" role="tabpanel"`;
+  const list = (items, fallback) =>
+    items?.length ? items.map((item) => `<li>${escapeHtml(item)}</li>`).join("") : `<li>${fallback}</li>`;
+  const badges = (items, fallback) =>
+    items?.length
+      ? items.map((item) => `<span class="badge">${escapeHtml(item.label)} ${item.count}회</span>`).join("")
+      : `<span class="badge">${fallback}</span>`;
+
+  const silenceItems = analysis.silenceEvents?.length
+    ? analysis.silenceEvents.map(
+        (event, index) =>
+          `${index + 1}번째 침묵: ${event.seconds}초 이상 대기 후 안내 표시`,
+      )
+    : [];
+  const scriptItems = state.messages
+    .map(
+      (message, index) => `
+        <li class="script-item">
+          <b>${index + 1}. ${message.role === "ai" ? "면접관 질문" : "지원자 답변"}</b>
+          <p>${escapeHtml(message.text)}</p>
+        </li>
+      `,
+    )
     .join("");
-
-  const fillerComment =
-    analysis.fillerTotal >= Math.max(4, state.answers.length * 2)
-      ? "추임새가 답변 흐름을 끊고 있습니다. 첫 문장을 말하기 전 1초 쉬고, 문장 중간의 공백은 침묵으로 두는 연습이 필요합니다."
-      : "추임새 사용은 과도하지 않습니다. 다만 핵심 문장 앞에서는 짧게 멈춘 뒤 말하면 더 단단하게 들립니다.";
-
-  const logicComment =
-    analysis.logicSignals < state.answers.length
-      ? "답변의 논리 연결어와 구조 신호가 적습니다. 상황, 행동, 결과, 배운 점 순서로 한 번 더 압축해 보세요."
-      : "답변 안에 원인과 결과를 연결하려는 신호가 보입니다. 다음 단계에서는 수치 근거를 더 붙이면 좋습니다.";
-
-  const evidenceComment =
-    analysis.evidenceSignals === 0
-      ? "정량 근거가 거의 없습니다. 기간, 규모, 개선율, 참여 인원처럼 검증 가능한 단위를 넣어 주세요."
-      : "정량 근거가 일부 포함되어 있습니다. 성과 수치를 직무 역량과 직접 연결하면 설득력이 올라갑니다.";
-
-  const nonverbalBlock = analysis.nonverbal
-    ? `
-      <section class="report-block">
-        <h3>비언어 피드백</h3>
-        <p>종합 안정도는 ${analysis.nonverbal.score}점이며, 가장 보완이 필요한 신호는 ${analysis.nonverbal.weakest}입니다.</p>
-        <div class="badge-row" style="margin-top: 12px;">
-          <span class="badge">시선 ${analysis.nonverbal.averages.eye}</span>
-          <span class="badge">자세 ${analysis.nonverbal.averages.posture}</span>
-          <span class="badge">표정 ${analysis.nonverbal.averages.expression}</span>
-          <span class="badge">제스처 ${analysis.nonverbal.averages.gesture}</span>
-        </div>
-        <ul style="margin-top: 12px;">
-          ${analysis.nonverbal.observations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-        </ul>
-      </section>
-    `
-    : "";
-
-  const aiBlock = aiReport
-    ? `
-      <section class="report-block">
-        <h3>Gemini 종합 피드백</h3>
-        <p>${escapeHtml(aiReport.summary || "종합 피드백을 생성했습니다.")}</p>
-      </section>
-      <section class="report-block">
-        <h3>강점</h3>
-        <ul>
-          ${(aiReport.strengths || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-        </ul>
-      </section>
-      <section class="report-block">
-        <h3>보완할 점</h3>
-        <ul>
-          ${(aiReport.improvements || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-        </ul>
-      </section>
-      <section class="report-block">
-        <h3>다음 연습</h3>
-        <ul>
-          ${(aiReport.practicePlan || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-        </ul>
-      </section>
-    `
-    : "";
+  const evaluationItems = analysis.questionEvaluations
+    .map(
+      (item) => `
+        <li>
+          ${item.index}번 답변 논리 구조 ${item.score}점:
+          ${item.feedback.map(escapeHtml).join(" ")}
+        </li>
+      `,
+    )
+    .join("");
+  const mappingBadges = analysis.jobFitMappings
+    .map(
+      (item) =>
+        `<span class="badge">${escapeHtml(item.keyword)} ${item.matched ? "언급" : "미언급"}</span>`,
+    )
+    .join("");
+  const nonverbal = analysis.nonverbal;
 
   return `
-    <section class="report-block">
-      <h3>점수 요약</h3>
-      <div class="score-grid">
-        <div class="score">
-          <b>${analysis.deliveryScore}</b>
-          <span>전달 안정감</span>
+    <div class="report-tabs" role="tablist" aria-label="리포트 분류">
+      <button class="report-tab ${tabClass("language")}" type="button" data-report-tab="language" role="tab" aria-selected="${active === "language"}">언어 습관</button>
+      <button class="report-tab ${tabClass("content")}" type="button" data-report-tab="content" role="tab" aria-selected="${active === "content"}">내용</button>
+      <button class="report-tab ${tabClass("nonverbal")}" type="button" data-report-tab="nonverbal" role="tab" aria-selected="${active === "nonverbal"}">비언어</button>
+    </div>
+
+    <section ${panelAttrs("language")}>
+      <section class="report-block">
+        <h3>언어 습관 요약</h3>
+        <div class="score-grid">
+          <div class="score"><b>${analysis.deliveryScore}</b><span>전달 안정감</span></div>
+          <div class="score"><b>${formatDuration(analysis.avgAnswerTimeMs)}</b><span>평균 답변 시간</span></div>
+          <div class="score"><b>${formatDuration(analysis.avgLatencyMs)}</b><span>평균 준비 시간</span></div>
         </div>
-        <div class="score">
-          <b>${analysis.structureScore}</b>
-          <span>논리 구조</span>
+      </section>
+      <section class="report-block">
+        <h3>추임새 Top 3</h3>
+        <div class="badge-row">${badges(analysis.topFillers, "감지된 추임새 적음")}</div>
+      </section>
+      <section class="report-block">
+        <h3>반복 표현 Top 5</h3>
+        <div class="badge-row">${badges(analysis.repeatedExpressions, "반복 표현 적음")}</div>
+      </section>
+      <section class="report-block">
+        <h3>침묵 및 휴지 구간</h3>
+        <ul>${list(silenceItems, "10초 이상 장시간 침묵은 감지되지 않았습니다.")}</ul>
+      </section>
+      ${
+        aiReport?.languageHabits?.length
+          ? `
+            <section class="report-block">
+              <h3>Gemini 언어 습관 피드백</h3>
+              <ul>${list(aiReport.languageHabits, "언어 습관 피드백이 없습니다.")}</ul>
+            </section>
+          `
+          : ""
+      }
+    </section>
+
+    <section ${panelAttrs("content")}>
+      <section class="report-block">
+        <h3>내용 점수</h3>
+        <div class="score-grid">
+          <div class="score"><b>${analysis.structureScore}</b><span>논리 구조</span></div>
+          <div class="score"><b>${analysis.specificityScore}</b><span>구체성</span></div>
+          <div class="score"><b>${analysis.wordCount}</b><span>답변 단어 수</span></div>
         </div>
-        <div class="score">
-          <b>${analysis.specificityScore}</b>
-          <span>구체성</span>
-        </div>
-      </div>
+      </section>
+      <section class="report-block">
+        <h3>전체 대화 스크립트</h3>
+        <ul class="script-list">${scriptItems || '<li class="script-item"><p>대화 기록이 없습니다.</p></li>'}</ul>
+      </section>
+      <section class="report-block">
+        <h3>질문별 논리 구조 평가</h3>
+        <ul>${evaluationItems || "<li>평가할 답변이 없습니다.</li>"}</ul>
+      </section>
+      <section class="report-block">
+        <h3>직무 적합성 및 인재상 매핑</h3>
+        <div class="badge-row">${mappingBadges || '<span class="badge">매핑 키워드 없음</span>'}</div>
+      </section>
+      <section class="report-block">
+        <h3>보완 포인트</h3>
+        <ul>${list(aiReport?.contentFeedback || aiReport?.improvements, "상황, 행동, 결과, 배운 점 순서로 답변을 더 명확히 구조화해 보세요.")}</ul>
+      </section>
+      ${
+        aiReport
+          ? `
+            <section class="report-block">
+              <h3>Gemini 종합 피드백</h3>
+              <p>${escapeHtml(aiReport.summary || "종합 피드백을 생성했습니다.")}</p>
+              <ul style="margin-top: 12px;">${list(aiReport.strengths, "강점 항목이 별도로 반환되지 않았습니다.")}</ul>
+            </section>
+            <section class="report-block">
+              <h3>다음 연습</h3>
+              <ul>${list(aiReport.practicePlan, "다음 연습 항목이 별도로 반환되지 않았습니다.")}</ul>
+            </section>
+          `
+          : ""
+      }
     </section>
-    <section class="report-block">
-      <h3>말 습관</h3>
-      <p>${fillerComment}</p>
-      <div class="badge-row" style="margin-top: 12px;">
-        ${frequentFillers || '<span class="badge">감지된 추임새 적음</span>'}
-      </div>
+
+    <section ${panelAttrs("nonverbal")}>
+      ${
+        nonverbal
+          ? `
+            <section class="report-block">
+              <h3>비언어 요약</h3>
+              <p>종합 안정도는 ${nonverbal.score}점이며, 가장 보완이 필요한 신호는 ${nonverbal.weakest}입니다.</p>
+              <div class="score-grid" style="margin-top: 12px;">
+                <div class="score"><b>${nonverbal.averages.eye}</b><span>시선</span></div>
+                <div class="score"><b>${nonverbal.averages.posture}</b><span>자세</span></div>
+                <div class="score"><b>${nonverbal.averages.expression}</b><span>표정</span></div>
+              </div>
+            </section>
+            <section class="report-block">
+              <h3>제스처 및 관찰</h3>
+              <div class="badge-row"><span class="badge">제스처 ${nonverbal.averages.gesture}</span><span class="badge">샘플 ${nonverbal.samples}개</span></div>
+              <ul style="margin-top: 12px;">${nonverbal.observations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+            </section>
+            <section class="report-block">
+              <h3>세션 중 감지 로그</h3>
+              <ul>${list(state.signalEvents, "세션 중 비언어 로그가 없습니다.")}</ul>
+            </section>
+            ${
+              aiReport?.nonverbalFeedback?.length
+                ? `
+                  <section class="report-block">
+                    <h3>Gemini 비언어 피드백</h3>
+                    <ul>${list(aiReport.nonverbalFeedback, "비언어 피드백이 없습니다.")}</ul>
+                  </section>
+                `
+                : ""
+            }
+          `
+          : `
+            <section class="report-block">
+              <h3>비언어 데이터 없음</h3>
+              <p>카메라 또는 데모 모드를 켠 뒤 면접을 진행하면 시선, 자세, 표정, 제스처 데이터가 이 탭에 표시됩니다.</p>
+            </section>
+          `
+      }
     </section>
-    <section class="report-block">
-      <h3>내용 피드백</h3>
-      <ul>
-        <li>${logicComment}</li>
-        <li>${evidenceComment}</li>
-        <li>평균 답변 길이는 ${analysis.avgLength}자입니다. 핵심 답변은 45초에서 75초 분량으로 맞춰 보세요.</li>
-      </ul>
-    </section>
-    ${nonverbalBlock}
-    ${aiBlock}
   `;
+}
+
+function bindReportTabs() {
+  elements.reportContent.querySelectorAll("[data-report-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const target = tab.dataset.reportTab;
+      state.activeReportTab = target;
+      elements.reportContent.querySelectorAll("[data-report-tab]").forEach((item) => {
+        const isActive = item.dataset.reportTab === target;
+        item.classList.toggle("is-active", isActive);
+        item.setAttribute("aria-selected", String(isActive));
+      });
+      elements.reportContent.querySelectorAll("[data-report-panel]").forEach((panel) => {
+        panel.classList.toggle("is-active", panel.dataset.reportPanel === target);
+      });
+      persistSession();
+    });
+  });
+}
+
+function renderReport(analysis, aiReport = null) {
+  elements.reportContent.innerHTML = localReportHtml(analysis, aiReport);
+  bindReportTabs();
+  state.lastReport = { analysis, aiReport };
+  setReportActionsEnabled(true);
+  persistSession();
 }
 
 function normalizeReport(data) {
@@ -755,7 +1229,8 @@ function normalizeReport(data) {
 async function generateReport() {
   if (!state.answers.length) return;
   const analysis = analyzeAnswers();
-  elements.reportContent.innerHTML = localReportHtml(analysis);
+  state.activeReportTab = state.activeReportTab || "language";
+  renderReport(analysis);
   elements.reportButton.disabled = true;
   elements.reportButton.textContent = "생성 중";
 
@@ -767,24 +1242,93 @@ async function generateReport() {
       localAnalysis: analysis,
     });
     const report = normalizeReport(data);
-    elements.reportContent.innerHTML = localReportHtml(analysis, report);
+    renderReport(analysis, report);
   } catch (error) {
-    setConnection("로컬 리포트", "amber");
+    const message = getReadableError(error);
+    setConnection("Gemini 리포트 실패", "red");
+    showApiNotice(message, generateReport);
   } finally {
     elements.reportButton.textContent = "리포트 생성";
     elements.reportButton.disabled = false;
+    persistSession();
+  }
+}
+
+function printReportAsPdf() {
+  if (!state.lastReport) return;
+  document.body.classList.add("print-report");
+  window.print();
+  window.setTimeout(() => document.body.classList.remove("print-report"), 500);
+}
+
+async function shareReportLink() {
+  if (!state.lastReport) return;
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const url = new URL(window.location.href);
+  url.hash = `report=${id}`;
+  const payload = {
+    createdAt: new Date().toISOString(),
+    report: state.lastReport,
+    messages: state.messages,
+    answers: state.answers,
+    answerMeta: state.answerMeta,
+    silenceEvents: state.silenceEvents,
+  };
+
+  try {
+    localStorage.setItem(`${SHARED_REPORT_PREFIX}${id}`, JSON.stringify(payload));
+    await navigator.clipboard?.writeText(url.toString());
+    elements.apiNotice.hidden = false;
+    elements.apiNotice.textContent = "공유 링크를 클립보드에 복사했습니다. 같은 브라우저에서 열면 리포트를 복원합니다.";
+  } catch (error) {
+    elements.apiNotice.hidden = false;
+    elements.apiNotice.textContent = `공유 링크: ${url.toString()}`;
+  }
+}
+
+function restoreSharedReport() {
+  const match = window.location.hash.match(/report=([^&]+)/);
+  if (!match) return false;
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(`${SHARED_REPORT_PREFIX}${match[1]}`) || "null");
+    if (!saved?.report) return false;
+    state.messages = saved.messages || [];
+    state.answers = saved.answers || [];
+    state.answerMeta = saved.answerMeta || [];
+    state.silenceEvents = saved.silenceEvents || [];
+    state.lastReport = saved.report;
+    renderMessages();
+    renderReport(saved.report.analysis, saved.report.aiReport);
+    setReportActionsEnabled(true);
+    elements.apiNotice.hidden = false;
+    elements.apiNotice.textContent = "공유 링크에서 리포트를 복원했습니다.";
+    updateMetrics();
+    return true;
+  } catch (error) {
+    return false;
   }
 }
 
 function resetSession() {
+  const confirmed = window.confirm("현재 면접 대화와 리포트를 모두 초기화할까요?");
+  if (!confirmed) return;
+
   window.speechSynthesis?.cancel();
   stopCamera(true);
+  clearSilenceTimer();
   if (state.recognition && state.isRecording) {
     state.recognition.stop();
   }
   state.started = false;
   state.busy = false;
   state.pendingVoiceText = "";
+  state.questionStartedAt = null;
+  state.currentAnswerStartedAt = null;
+  state.answerMeta = [];
+  state.silenceEvents = [];
+  state.lastReport = null;
+  state.activeReportTab = "language";
   elements.answerInput.value = "";
   elements.answerInput.disabled = true;
   elements.sendButton.disabled = true;
@@ -796,8 +1340,11 @@ function resetSession() {
   elements.reportContent.innerHTML = `
     <div class="empty-state">답변을 한 번 이상 전송하면 리포트를 만들 수 있습니다.</div>
   `;
+  hideApiNotice();
+  setReportActionsEnabled(false);
   setConnection("Gemini 대기", "blue");
   clearChat();
+  sessionStorage.removeItem(SESSION_STORAGE_KEY);
 }
 
 elements.resumeFile.addEventListener("change", (event) => {
@@ -806,11 +1353,22 @@ elements.resumeFile.addEventListener("change", (event) => {
 
 elements.depthInput.addEventListener("input", () => {
   elements.depthOutput.textContent = elements.depthInput.value;
+  persistSession();
+});
+
+[elements.companyInput, elements.roleInput, elements.talentInput, elements.personaInput].forEach((input) => {
+  input.addEventListener("input", persistSession);
+  input.addEventListener("change", persistSession);
 });
 
 elements.startButton.addEventListener("click", startInterview);
 elements.cameraButton.addEventListener("click", startCamera);
 elements.simulationButton.addEventListener("click", startDemoMode);
+elements.retryButton.addEventListener("click", () => {
+  if (state.pendingRetry) state.pendingRetry();
+});
+elements.downloadReportButton.addEventListener("click", printReportAsPdf);
+elements.shareReportButton.addEventListener("click", shareReportLink);
 
 elements.micButton.addEventListener("click", () => {
   if (!state.recognition || state.busy) return;
@@ -822,6 +1380,12 @@ elements.micButton.addEventListener("click", () => {
     state.recognition.start();
   } catch (error) {
     elements.liveTranscript.textContent = "음성 인식을 다시 시작할 수 없습니다. 잠시 후 다시 눌러 주세요.";
+  }
+});
+
+elements.answerInput.addEventListener("input", () => {
+  if (elements.answerInput.value.trim()) {
+    markAnswerStarted("text");
   }
 });
 
@@ -843,11 +1407,15 @@ elements.answerForm.addEventListener("submit", (event) => {
 elements.reportButton.addEventListener("click", generateReport);
 elements.resetButton.addEventListener("click", resetSession);
 window.addEventListener("beforeunload", () => stopCamera(false));
+window.addEventListener("afterprint", () => document.body.classList.remove("print-report"));
 
 if ("speechSynthesis" in window) {
   window.speechSynthesis.onvoiceschanged = () => {};
 }
 
+if (!restoreSharedReport()) {
+  restoreSession();
+}
 setupSpeechRecognition();
 renderNonverbalScores();
 updateMetrics();

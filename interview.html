@@ -496,13 +496,84 @@
 
       .report-actions {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
       }
 
       .report-content {
         display: grid;
         gap: 14px;
+      }
+
+      .api-notice {
+        padding: 12px;
+        border: 1px solid rgba(180, 35, 24, 0.24);
+        border-radius: 8px;
+        background: rgba(180, 35, 24, 0.08);
+        color: var(--red);
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.5;
+      }
+
+      .api-notice[hidden] {
+        display: none;
+      }
+
+      .report-tabs {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .report-tab {
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .report-tab.is-active {
+        border-color: rgba(31, 122, 91, 0.42);
+        background: rgba(31, 122, 91, 0.08);
+        color: var(--green);
+      }
+
+      .report-tab-panel {
+        display: none;
+      }
+
+      .report-tab-panel.is-active {
+        display: grid;
+        gap: 14px;
+      }
+
+      .script-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+      }
+
+      .script-item {
+        display: grid;
+        gap: 5px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .script-item b {
+        color: var(--text);
+        font-size: 12px;
+      }
+
+      .script-item p {
+        margin: 0;
       }
 
       .report-block {
@@ -901,6 +972,7 @@
         .speech-row,
         .answer-form,
         .report-actions,
+        .report-tabs,
         .camera-controls {
           grid-template-columns: 1fr;
         }
@@ -911,6 +983,32 @@
 
         .send-button {
           min-height: 46px;
+        }
+      }
+
+      @media print {
+        body.print-report .topbar,
+        body.print-report .setup-panel,
+        body.print-report .conversation-panel,
+        body.print-report .report-actions,
+        body.print-report .api-notice {
+          display: none;
+        }
+
+        body.print-report {
+          background: #fff;
+        }
+
+        body.print-report .interview-shell,
+        body.print-report .workspace,
+        body.print-report .report-panel {
+          width: 100%;
+          min-height: auto;
+          display: block;
+          margin: 0;
+          padding: 0;
+          box-shadow: none;
+          border: 0;
         }
       }
     </style>
@@ -942,7 +1040,7 @@
           <form class="form-grid" id="setupForm">
             <label class="field file-control">
               <span>자기소개서 첨부</span>
-              <input id="resumeFile" type="file" accept=".txt,.md,.pdf,.doc,.docx" />
+              <input id="resumeFile" type="file" accept=".txt,.md,.pdf,.docx" />
               <small class="file-name" id="fileName">선택된 파일 없음</small>
             </label>
 
@@ -1122,10 +1220,21 @@
             <button class="secondary-button" id="reportButton" type="button" disabled>
               리포트 생성
             </button>
+            <button class="secondary-button" id="retryButton" type="button" hidden>
+              Gemini 재시도
+            </button>
+            <button class="secondary-button" id="downloadReportButton" type="button" disabled>
+              PDF 저장
+            </button>
+            <button class="secondary-button" id="shareReportButton" type="button" disabled>
+              링크 공유
+            </button>
             <button class="secondary-button" id="resetButton" type="button">
               초기화
             </button>
           </div>
+
+          <div class="api-notice" id="apiNotice" hidden></div>
 
           <div class="report-content" id="reportContent">
             <div class="empty-state">
