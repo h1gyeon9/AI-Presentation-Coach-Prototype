@@ -1,14 +1,17 @@
-const DEFAULT_LIVE_MODEL = "gemini-3-flash-live";
+const DEFAULT_LIVE_MODEL = "gemini-3.1-flash-live-preview";
 const LIVE_MODEL_ALIASES = {
-  "gemini 3 flash live": "gemini-3-flash-live",
-  "gemini-3-flash-live": "gemini-3-flash-live",
-  "gemini-3-flash-live-preview": "gemini-3-flash-live-preview",
+  "gemini live 2.5 flash native audio": "gemini-live-2.5-flash-native-audio",
+  "gemini-live-2.5-flash-native-audio": "gemini-live-2.5-flash-native-audio",
+  "gemini 2.5 flash native audio dialog": "gemini-live-2.5-flash-native-audio",
+  "gemini 2.5 flash live native audio": "gemini-live-2.5-flash-native-audio",
+  "gemini-2.5-flash-native-audio": "gemini-live-2.5-flash-native-audio",
+  "gemini 3 flash live": "gemini-3.1-flash-live-preview",
+  "gemini-3-flash-live": "gemini-3.1-flash-live-preview",
+  "gemini-3-flash-live-preview": "gemini-3.1-flash-live-preview",
   "gemini 3.1 flash live": "gemini-3.1-flash-live-preview",
   "gemini 3.1 flash live preview": "gemini-3.1-flash-live-preview",
   "gemini-3.1-flash-live": "gemini-3.1-flash-live-preview",
   "gemini-3.1-flash-live-preview": "gemini-3.1-flash-live-preview",
-  "gemini 2.5 flash native audio dialog": "gemini-2.5-flash-native-audio-preview-12-2025",
-  "gemini-2.5-flash-native-audio": "gemini-2.5-flash-native-audio-preview-12-2025",
   "gemini-2.5-flash-native-audio-preview-12-2025":
     "gemini-2.5-flash-native-audio-preview-12-2025",
 };
