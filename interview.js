@@ -132,6 +132,9 @@ function getReadableError(error) {
   if (error?.code === "MISSING_KEY") {
     return "AI API 키가 설정되지 않았습니다. Netlify 환경변수를 확인해 주세요.";
   }
+  if (error?.status === 429) {
+    return "AI 사용량 한도 또는 분당 요청 제한에 도달했습니다. API 콘솔에서 결제/쿼터 상태를 확인하거나 잠시 후 다시 시도해 주세요.";
+  }
   if (error?.status) {
     return `AI API 오류가 발생했습니다. (${error.status}) ${error.message || ""}`.trim();
   }

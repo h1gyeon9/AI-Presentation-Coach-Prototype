@@ -1,4 +1,4 @@
-const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
 
 const headers = {
