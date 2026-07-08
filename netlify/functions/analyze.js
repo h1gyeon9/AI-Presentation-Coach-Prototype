@@ -1,4 +1,4 @@
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
 const API_KEY = process.env.GEMINI_API_KEY;
 
 const AUDIENCE_LABELS = {
@@ -10,7 +10,7 @@ const AUDIENCE_LABELS = {
 };
 
 function buildInstructions(mode, audienceLabel) {
-  const base = `당신은 발표/면접 코치입니다. 청중은 "${audienceLabel}"입니다. 한국어로 구체적이고 실행 가능한 피드백을 제공하세요.`;
+  const base = `당신은 발표/면접 코치입니다. 청중은 "${audienceLabel}"입니다. 한국어로 구체적이고 실행 가능한 피드백을 제공하세요. 인사말이나 "~피드백을 드리겠습니다" 같은 서두 없이, 바로 분석 내용부터 시작하세요.`;
 
   if (mode === "audio") {
     return `${base}\n첨부된 음성을 듣고 발화 내용(논리 구성, 단어 표현)과 전달력(속도, 휴지, 발음)을 분석해 개선점을 제시하세요.`;

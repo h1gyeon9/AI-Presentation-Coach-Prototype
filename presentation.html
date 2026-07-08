@@ -40,7 +40,6 @@
             <option value="record">음성 및 영상</option>
           </select>
 
-          <button type="button" id="start-btn" class="primary-btn">발표 연습 시작</button>
         </aside>
 
         <section class="panel practice-panel">
@@ -49,7 +48,7 @@
               <span class="coach-avatar" aria-hidden="true">AI</span>
               <div>
                 <strong>AI 발표 코치</strong>
-                <p id="coach-status-line">설정을 완료하고 연습을 시작하세요.</p>
+                <p id="coach-status-line">청중 유형을 선택하고 리포트 생성을 눌러 피드백을 받아보세요.</p>
               </div>
             </div>
             <div class="stat-chips">
@@ -58,8 +57,8 @@
                 <small>모드</small>
               </div>
               <div class="stat-chip">
-                <span id="stat-time">0:00</span>
-                <small>녹음 시간</small>
+                <span id="stat-time">-</span>
+                <small id="stat-time-label">예상 발표 시간</small>
               </div>
             </div>
           </div>
@@ -72,6 +71,10 @@
                 rows="14"
                 placeholder="발표할 대본을 입력하세요."
               ></textarea>
+            </div>
+            <div class="confirm-row">
+              <button type="button" id="confirm-script-btn" class="ghost-btn-lg">대본 확정</button>
+              <span class="confirm-status" id="script-confirm-status" hidden></span>
             </div>
           </div>
 
@@ -166,7 +169,7 @@
           <p class="report-hint" id="report-hint">왼쪽에서 청중 유형을 먼저 선택해주세요.</p>
           <div class="report-content" id="report-content">
             <p class="result-placeholder">
-              연습을 시작하고 리포트를 생성하면 이곳에 표시됩니다.
+              리포트를 생성하면 이곳에 표시됩니다.
             </p>
           </div>
         </aside>

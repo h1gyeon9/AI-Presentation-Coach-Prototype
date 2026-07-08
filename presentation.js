@@ -10,16 +10,17 @@ const VIDEO_BITRATE = 200000;
 const AUDIO_BITRATE = 32000;
 
 const RECORD_LABEL = "레코딩";
+const SPEECH_CHARS_PER_MINUTE = 300; // 한국어 발표 발화 속도 추정치 (분당 글자 수)
 
 const statusBadge = document.getElementById("status-badge");
 const scriptText = document.getElementById("script-text");
 const audienceSelect = document.getElementById("audience-select");
 const modeSelect = document.getElementById("mode-select");
-const startBtn = document.getElementById("start-btn");
 
 const coachStatusLine = document.getElementById("coach-status-line");
 const statMode = document.getElementById("stat-mode");
 const statTime = document.getElementById("stat-time");
+const statTimeLabel = document.getElementById("stat-time-label");
 
 const scriptPanel = document.getElementById("script-panel");
 const scriptOptionalPanel = document.getElementById("script-optional-panel");
@@ -45,12 +46,15 @@ const metricBars = document.getElementById("metric-bars");
 const eventLog = document.getElementById("event-log");
 const coachFeedbackContent = document.getElementById("coach-feedback-content");
 
+const confirmScriptBtn = document.getElementById("confirm-script-btn");
+const scriptConfirmStatus = document.getElementById("script-confirm-status");
+
 const generateReportBtn = document.getElementById("generate-report-btn");
 const resetReportBtn = document.getElementById("reset-report-btn");
 const reportContent = document.getElementById("report-content");
 const reportHint = document.getElementById("report-hint");
 
-let sessionStarted = false;
+let scriptConfirmed = false;
 let cameraOn = false;
 let activeStream = null;
 let recorder = null;
@@ -66,12 +70,103 @@ function setStatus(kind, text) {
   if (kind) statusBadge.classList.add(kind);
 }
 
+function escapeHtml(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function inlineFormat(text) {
+  return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+
+// Gemini 응답이 마크다운(#, **, - 등)으로 오기 때문에, 별도 라이브러리 없이
+// 헤딩/굵게/목록 정도만 가볍게 HTML로 변환해서 가독성을 높인다.
+function renderMarkdownLite(raw) {
+  const lines = raw.replace(/\r\n/g, "\n").split("\n");
+  const htmlParts = [];
+  let listBuffer = [];
+  let listType = null;
+  let paragraphBuffer = [];
+
+  function flushParagraph() {
+    if (paragraphBuffer.length) {
+      htmlParts.push(`<p>${paragraphBuffer.join(" ")}</p>`);
+      paragraphBuffer = [];
+    }
+  }
+
+  function flushList() {
+    if (listBuffer.length) {
+      const tag = listType === "ol" ? "ol" : "ul";
+      htmlParts.push(`<${tag}>${listBuffer.map((item) => `<li>${item}</li>`).join("")}</${tag}>`);
+      listBuffer = [];
+      listType = null;
+    }
+  }
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+
+    if (trimmed === "") {
+      flushParagraph();
+      flushList();
+      return;
+    }
+
+    if (/^#{1,6}\s+/.test(trimmed)) {
+      flushParagraph();
+      flushList();
+      htmlParts.push(`<h4 class="md-heading">${inlineFormat(trimmed.replace(/^#{1,6}\s+/, ""))}</h4>`);
+      return;
+    }
+
+    if (/^(-{3,}|\*{3,})$/.test(trimmed)) {
+      flushParagraph();
+      flushList();
+      htmlParts.push("<hr>");
+      return;
+    }
+
+    const bulletMatch = trimmed.match(/^[-*]\s+(.*)/);
+    if (bulletMatch) {
+      flushParagraph();
+      if (listType !== "ul") flushList();
+      listType = "ul";
+      listBuffer.push(inlineFormat(bulletMatch[1]));
+      return;
+    }
+
+    const numberedMatch = trimmed.match(/^\d+[.)]\s+(.*)/);
+    if (numberedMatch) {
+      flushParagraph();
+      if (listType !== "ol") flushList();
+      listType = "ol";
+      listBuffer.push(inlineFormat(numberedMatch[1]));
+      return;
+    }
+
+    flushList();
+    paragraphBuffer.push(inlineFormat(trimmed));
+  });
+
+  flushParagraph();
+  flushList();
+
+  return htmlParts.join("");
+}
+
 function setContent(container, text, isPlaceholder) {
   container.innerHTML = "";
-  const p = document.createElement("p");
-  p.className = isPlaceholder ? "result-placeholder" : "result-text";
-  p.textContent = text;
-  container.appendChild(p);
+  if (isPlaceholder) {
+    const p = document.createElement("p");
+    p.className = "result-placeholder";
+    p.textContent = text;
+    container.appendChild(p);
+    return;
+  }
+  const wrap = document.createElement("div");
+  wrap.className = "result-text";
+  wrap.innerHTML = renderMarkdownLite(text);
+  container.appendChild(wrap);
 }
 
 function setScriptComparison(container, originalText, feedbackText) {
@@ -90,10 +185,10 @@ function setScriptComparison(container, originalText, feedbackText) {
   const feedbackCol = document.createElement("div");
   feedbackCol.className = "script-compare-col";
   feedbackCol.innerHTML = "<h4>AI 피드백</h4>";
-  const feedbackP = document.createElement("p");
-  feedbackP.className = "compare-text";
-  feedbackP.textContent = feedbackText;
-  feedbackCol.appendChild(feedbackP);
+  const feedbackBody = document.createElement("div");
+  feedbackBody.className = "compare-text";
+  feedbackBody.innerHTML = renderMarkdownLite(feedbackText);
+  feedbackCol.appendChild(feedbackBody);
 
   wrap.appendChild(originalCol);
   wrap.appendChild(feedbackCol);
@@ -104,6 +199,11 @@ function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function estimateSpeakingSeconds(text) {
+  const length = text.trim().length;
+  return Math.round((length / SPEECH_CHARS_PER_MINUTE) * 60);
 }
 
 function startTimer() {
@@ -214,6 +314,9 @@ function updateModeUI() {
   metricBars.hidden = true;
 
   if (needsMedia) {
+    statTimeLabel.textContent = "녹음 시간";
+    statTime.textContent = formatTime(elapsedSeconds);
+
     if (!activeStream) {
       camPlaceholder.hidden = false;
       camPlaceholder.textContent = cameraOn ? "CAM" : "MIC";
@@ -224,13 +327,42 @@ function updateModeUI() {
     recordBtn.dataset.idleLabel = `● ${RECORD_LABEL} 시작`;
     recordBtn.dataset.recordingLabel = "■ 완료";
     mediaFileInput.accept = cameraOn ? ALLOWED_VIDEO_TYPES.join(",") : "audio/*";
+  } else {
+    statTimeLabel.textContent = "예상 발표 시간";
+    statTime.textContent = scriptConfirmed ? formatTime(estimateSpeakingSeconds(scriptText.value)) : "-";
   }
 }
 
 function updateGenerateReportAvailability() {
   const missingAudience = audienceSelect.value === "";
-  generateReportBtn.disabled = missingAudience;
-  reportHint.hidden = !missingAudience;
+  const missingScriptConfirm = getBackendMode() === "script" && !scriptConfirmed;
+
+  generateReportBtn.disabled = missingAudience || missingScriptConfirm;
+
+  if (missingAudience) {
+    reportHint.textContent = "왼쪽에서 청중 유형을 먼저 선택해주세요.";
+  } else if (missingScriptConfirm) {
+    reportHint.textContent = "대본을 입력하고 '대본 확정' 버튼을 눌러주세요.";
+  }
+  reportHint.hidden = !(missingAudience || missingScriptConfirm);
+}
+
+function setScriptConfirmed(confirmed) {
+  scriptConfirmed = confirmed;
+  if (confirmed) {
+    const length = scriptText.value.trim().length;
+    scriptConfirmStatus.textContent = `✓ 대본이 확정되었습니다 (총 ${length}자)`;
+    scriptConfirmStatus.hidden = false;
+    if (modeSelect.value === "script") {
+      statTime.textContent = formatTime(estimateSpeakingSeconds(scriptText.value));
+    }
+  } else {
+    scriptConfirmStatus.hidden = true;
+    if (modeSelect.value === "script") {
+      statTime.textContent = "-";
+    }
+  }
+  updateGenerateReportAvailability();
 }
 
 function clearMedia() {
@@ -387,17 +519,22 @@ cameraToggleBtn.addEventListener("click", () => {
 
 modeSelect.addEventListener("change", () => {
   if (recorder && recorder.state === "recording") recorder.stop();
+  setScriptConfirmed(false);
   clearMedia();
 });
 
 audienceSelect.addEventListener("change", updateGenerateReportAvailability);
 
-startBtn.addEventListener("click", () => {
-  sessionStarted = true;
-  startBtn.disabled = true;
-  startBtn.textContent = "연습 중";
-  coachStatusLine.textContent = "연습을 진행하고 리포트 생성을 눌러 피드백을 받아보세요.";
-  setStatus(null, "연습 중");
+confirmScriptBtn.addEventListener("click", () => {
+  if (scriptText.value.trim().length < MIN_SCRIPT_LENGTH) {
+    alert("대본이 너무 짧습니다. 최소 100자 이상 입력해 주세요.");
+    return;
+  }
+  setScriptConfirmed(true);
+});
+
+scriptText.addEventListener("input", () => {
+  if (scriptConfirmed) setScriptConfirmed(false);
 });
 
 recordBtn.addEventListener("click", () => {
@@ -440,9 +577,9 @@ resetBtn.addEventListener("click", () => {
 });
 
 resetReportBtn.addEventListener("click", () => {
-  setContent(reportContent, "연습을 시작하고 리포트를 생성하면 이곳에 표시됩니다.", true);
+  setContent(reportContent, "리포트를 생성하면 이곳에 표시됩니다.", true);
   if (statusBadge.classList.contains("done")) {
-    setStatus(null, sessionStarted ? "연습 중" : "Gemini 대기");
+    setStatus(null, "Gemini 대기");
   }
 });
 
@@ -480,17 +617,28 @@ generateReportBtn.addEventListener("click", async () => {
       body: JSON.stringify({ mode, script, audience, mediaBase64, mediaMimeType }),
     });
 
-    const data = await response.json();
+    const rawBody = await response.text();
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      throw new Error(
+        rawBody
+          ? `서버 응답을 해석하지 못했습니다: ${rawBody.slice(0, 200)}`
+          : "서버로부터 빈 응답을 받았습니다. 파일 용량을 줄이거나 잠시 후 다시 시도해주세요."
+      );
+    }
     if (!response.ok) {
       throw new Error(data.error || "분석 요청이 실패했습니다.");
     }
 
     if (mode === "script") {
       setScriptComparison(coachFeedbackContent, script, data.feedback);
+      setContent(reportContent, "분석이 완료됐습니다. 왼쪽 'AI 코치'에서 원본 대본과 피드백을 나란히 확인하세요.", true);
     } else {
       setContent(coachFeedbackContent, "분석이 완료됐습니다. 오른쪽 리포트를 확인하세요.", true);
+      setContent(reportContent, data.feedback, false);
     }
-    setContent(reportContent, data.feedback, false);
     coachStatusLine.textContent = "분석이 완료됐습니다.";
     setStatus("done", "분석 완료");
   } catch (err) {
