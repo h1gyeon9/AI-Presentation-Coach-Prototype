@@ -1256,9 +1256,297 @@ async function generateReport() {
 
 function printReportAsPdf() {
   if (!state.lastReport) return;
-  document.body.classList.add("print-report");
-  window.print();
-  window.setTimeout(() => document.body.classList.remove("print-report"), 500);
+  const iframe = document.createElement("iframe");
+  iframe.title = "AI 면접 리포트 PDF";
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+
+  const cleanup = () => {
+    window.setTimeout(() => iframe.remove(), 1000);
+  };
+
+  iframe.onload = () => {
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    iframe.contentWindow?.addEventListener("afterprint", cleanup, { once: true });
+    window.setTimeout(cleanup, 3000);
+  };
+
+  document.body.appendChild(iframe);
+  iframe.srcdoc = buildPrintableReportDocument(
+    state.lastReport.analysis,
+    state.lastReport.aiReport,
+  );
+}
+
+function buildPrintableReportDocument(analysis, aiReport = null) {
+  const profile = getProfile();
+  const generatedAt = new Date().toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const resumeLabel = profile.resumeName ? profile.resumeName : "첨부 없음";
+  const reportHtml = localReportHtml(analysis, aiReport);
+
+  return `<!doctype html>
+    <html lang="ko">
+      <head>
+        <meta charset="UTF-8" />
+        <title>AI 면접 리포트</title>
+        <style>
+          :root {
+            --text: #172033;
+            --muted: #667085;
+            --line: #d9e0ea;
+            --surface: #f8fafc;
+            --green: #1f7a5b;
+            --blue: #3157c9;
+            --amber: #a76612;
+          }
+
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            color: var(--text);
+            background: #fff;
+            font-family: Inter, Pretendard, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          }
+
+          .print-page {
+            width: min(920px, calc(100% - 48px));
+            margin: 0 auto;
+            padding: 32px 0 44px;
+          }
+
+          .print-header {
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--text);
+          }
+
+          .kicker {
+            margin: 0 0 8px;
+            color: var(--blue);
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+          }
+
+          h1 {
+            margin: 0;
+            font-size: 30px;
+            line-height: 1.2;
+          }
+
+          .summary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 18px;
+          }
+
+          .summary-item,
+          .score,
+          .report-block,
+          .script-item {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+          }
+
+          .summary-item {
+            min-height: 58px;
+            padding: 10px 12px;
+          }
+
+          .summary-item span,
+          .score span {
+            display: block;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 900;
+          }
+
+          .summary-item b,
+          .score b {
+            display: block;
+            margin-top: 4px;
+            font-size: 16px;
+          }
+
+          .report-tabs {
+            display: none;
+          }
+
+          .report-tab-panel {
+            display: grid !important;
+            gap: 12px;
+            margin-top: 24px;
+            break-before: page;
+          }
+
+          .report-tab-panel:first-of-type {
+            break-before: auto;
+          }
+
+          .report-tab-panel::before {
+            display: block;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--line);
+            font-size: 21px;
+            font-weight: 900;
+          }
+
+          .report-tab-panel[data-report-panel="language"]::before {
+            content: "언어 습관";
+          }
+
+          .report-tab-panel[data-report-panel="content"]::before {
+            content: "내용";
+          }
+
+          .report-tab-panel[data-report-panel="nonverbal"]::before {
+            content: "비언어";
+          }
+
+          .report-block {
+            padding: 14px;
+            background: var(--surface);
+            break-inside: avoid;
+          }
+
+          .report-block h3 {
+            margin: 0 0 10px;
+            font-size: 15px;
+          }
+
+          .report-block p,
+          .report-block li {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.58;
+          }
+
+          .report-block p {
+            margin: 0;
+          }
+
+          .report-block ul {
+            margin: 0;
+            padding-left: 18px;
+          }
+
+          .score-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+          }
+
+          .score {
+            min-height: 72px;
+            padding: 10px;
+            background: #fff;
+          }
+
+          .score b {
+            font-size: 20px;
+          }
+
+          .badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+          }
+
+          .badge {
+            display: inline-flex;
+            min-height: 28px;
+            align-items: center;
+            padding: 0 9px;
+            border: 1px solid rgba(167, 102, 18, 0.22);
+            border-radius: 8px;
+            background: rgba(167, 102, 18, 0.08);
+            color: var(--amber);
+            font-size: 11px;
+            font-weight: 900;
+          }
+
+          .script-list {
+            max-height: none !important;
+            overflow: visible !important;
+            display: grid;
+            gap: 8px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+          }
+
+          .script-item {
+            display: grid;
+            gap: 5px;
+            padding: 10px;
+            background: #fff;
+            break-inside: avoid;
+          }
+
+          .script-item b {
+            color: var(--text);
+            font-size: 12px;
+          }
+
+          .script-item p {
+            margin: 0;
+          }
+
+          .print-footer {
+            margin-top: 24px;
+            padding-top: 12px;
+            border-top: 1px solid var(--line);
+            color: var(--muted);
+            font-size: 11px;
+          }
+
+          @page {
+            margin: 14mm;
+          }
+
+          @media print {
+            .print-page {
+              width: 100%;
+              padding: 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <main class="print-page">
+          <header class="print-header">
+            <p class="kicker">AI Interview Coach</p>
+            <h1>면접 리포트</h1>
+            <div class="summary">
+              <div class="summary-item"><span>생성일</span><b>${escapeHtml(generatedAt)}</b></div>
+              <div class="summary-item"><span>회사 / 직무</span><b>${escapeHtml(profile.company)} · ${escapeHtml(profile.role)}</b></div>
+              <div class="summary-item"><span>면접관 유형</span><b>${escapeHtml(profile.personaLabel)}</b></div>
+              <div class="summary-item"><span>자기소개서</span><b>${escapeHtml(resumeLabel)}</b></div>
+            </div>
+          </header>
+          ${reportHtml}
+          <footer class="print-footer">
+            이 리포트는 면접 연습 기록과 AI 분석 결과를 기반으로 생성된 프로토타입 리포트입니다.
+          </footer>
+        </main>
+      </body>
+    </html>`;
 }
 
 async function shareReportLink() {
