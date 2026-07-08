@@ -1,7 +1,7 @@
 const DEFAULT_LIVE_MODEL = "gemini-3-flash-live";
 const LIVE_MODEL_ALIASES = {
-  "gemini 3 flash live": "gemini-3-flash-live-preview",
-  "gemini-3-flash-live": "gemini-3-flash-live-preview",
+  "gemini 3 flash live": "gemini-3-flash-live",
+  "gemini-3-flash-live": "gemini-3-flash-live",
   "gemini-3-flash-live-preview": "gemini-3-flash-live-preview",
   "gemini 3.1 flash live": "gemini-3.1-flash-live-preview",
   "gemini 3.1 flash live preview": "gemini-3.1-flash-live-preview",

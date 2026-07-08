@@ -809,7 +809,7 @@ function updateLiveControls() {
 }
 
 function normalizeLiveModelName(model) {
-  const value = model || "gemini-3-flash-live-preview";
+  const value = model || "gemini-3-flash-live";
   return value.startsWith("models/") ? value : `models/${value}`;
 }
 
@@ -938,7 +938,7 @@ async function startLiveInterview() {
 
   try {
     const tokenData = await requestLiveToken();
-    state.liveModel = tokenData.model || "gemini-3-flash-live-preview";
+    state.liveModel = tokenData.model || "gemini-3-flash-live";
     console.info("[AI Live] token issued", { model: state.liveModel });
     const socket = new WebSocket(
       `${LIVE_WS_ENDPOINT}?access_token=${encodeURIComponent(tokenData.token)}`,
@@ -950,7 +950,10 @@ async function startLiveInterview() {
       const setupMessage = {
         setup: {
           model: normalizeLiveModelName(state.liveModel),
-          responseModalities: ["AUDIO"],
+          generationConfig: {
+            responseModalities: ["AUDIO"],
+            temperature: 0.7,
+          },
           systemInstruction: {
             parts: [{ text: buildLiveSystemInstruction() }],
           },
