@@ -604,7 +604,7 @@ async function requestTtsAudio(text) {
     throw error;
   }
   if (!data.audioBase64) {
-    throw new Error("AI 음성 응답이 비어 있습니다.");
+    return { ...data, audioUnavailable: true };
   }
   return data;
 }
@@ -620,6 +620,14 @@ async function speak(text) {
   try {
     const data = await requestTtsAudio(text);
     if (requestId !== state.ttsRequestId || !state.voiceEnabled) return;
+    if (data.audioUnavailable) {
+      state.ttsBusy = false;
+      elements.liveTranscript.textContent = state.recognitionSupported && !state.textInputMode
+        ? "REC 버튼을 눌러 답변하세요."
+        : "텍스트 입력 모드입니다. 답변을 입력하고 전송하세요.";
+      updateMetrics();
+      return;
+    }
 
     const audio = new Audio(`data:${data.mimeType || "audio/wav"};base64,${data.audioBase64}`);
     state.ttsAudio = audio;
@@ -665,7 +673,6 @@ async function speak(text) {
     state.ttsCancel = null;
     state.ttsBusy = false;
     elements.liveTranscript.textContent = "AI 음성 출력에 실패했습니다. 텍스트로 답변을 확인해 주세요.";
-    console.warn("[AI TTS] failed", error);
     updateMetrics();
   }
 }
