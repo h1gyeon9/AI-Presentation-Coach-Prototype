@@ -5,6 +5,7 @@ const LIVE_WS_ENDPOINT =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
 const LIVE_INPUT_SAMPLE_RATE = 16000;
 const LIVE_OUTPUT_SAMPLE_RATE = 24000;
+const LIVE_SETUP_VARIANTS = ["full", "no-transcription", "minimal"];
 const NONVERBAL_TICK_MS = 1600;
 const NONVERBAL_LOG_EVERY_TICKS = 5;
 const SILENCE_PROMPT_MS = 10000;
@@ -73,6 +74,9 @@ const state = {
   liveOutputBuffer: "",
   liveModel: "",
   liveManualClose: false,
+  liveSetupAttempt: 0,
+  liveSetupComplete: false,
+  liveSetupVariant: "full",
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -813,6 +817,33 @@ function normalizeLiveModelName(model) {
   return value.startsWith("models/") ? value : `models/${value}`;
 }
 
+function getLiveSetupVariant(attempt) {
+  return LIVE_SETUP_VARIANTS[Math.min(attempt, LIVE_SETUP_VARIANTS.length - 1)];
+}
+
+function buildLiveSetupMessage(variant) {
+  const setup = {
+    model: normalizeLiveModelName(state.liveModel),
+    generationConfig: {
+      responseModalities: ["AUDIO"],
+      temperature: 0.7,
+    },
+  };
+
+  if (variant !== "minimal") {
+    setup.systemInstruction = {
+      parts: [{ text: buildLiveSystemInstruction() }],
+    };
+  }
+
+  if (variant === "full") {
+    setup.inputAudioTranscription = {};
+    setup.outputAudioTranscription = {};
+  }
+
+  return { setup };
+}
+
 function buildLiveSystemInstruction() {
   const profile = getProfile();
   const history = state.messages
@@ -908,6 +939,98 @@ function sendLiveText(text) {
   });
 }
 
+function handleLiveStartupError(error) {
+  stopLiveInterview(false);
+  const message = getReadableError(error);
+  setConnection("AI Live 실패", "red");
+  setLiveStatus(message, "error");
+  showApiNotice(message, startLiveInterview);
+}
+
+async function connectLiveSocket(attempt = 0) {
+  const variant = getLiveSetupVariant(attempt);
+  state.liveSetupAttempt = attempt;
+  state.liveSetupVariant = variant;
+
+  const tokenData = await requestLiveToken();
+  state.liveModel = tokenData.model || "gemini-3.1-flash-live-preview";
+  console.info("[AI Live] token issued", {
+    model: state.liveModel,
+    setupVariant: variant,
+    attempt: attempt + 1,
+  });
+
+  const socket = new WebSocket(
+    `${LIVE_WS_ENDPOINT}?access_token=${encodeURIComponent(tokenData.token)}`,
+  );
+  state.liveSocket = socket;
+
+  socket.onopen = () => {
+    setLiveStatus("AI 음성 세션을 설정하고 있습니다.", "live");
+    const setupMessage = buildLiveSetupMessage(variant);
+    console.info("[AI Live] sending setup", {
+      model: setupMessage.setup.model,
+      setupVariant: variant,
+      attempt: attempt + 1,
+      fields: Object.keys(setupMessage.setup),
+    });
+    sendLiveMessage(setupMessage);
+  };
+
+  socket.onmessage = (event) => {
+    handleLiveMessage(event.data);
+  };
+
+  socket.onerror = (event) => {
+    console.error("[AI Live] websocket error", event);
+    setLiveStatus("실시간 음성 연결 오류가 발생했습니다.", "error");
+    setConnection("AI Live 실패", "red");
+  };
+
+  socket.onclose = (event) => {
+    const wasManual = state.liveManualClose;
+    console.warn("[AI Live] websocket closed", {
+      code: event.code,
+      reason: event.reason,
+      wasClean: event.wasClean,
+      wasManual,
+      model: state.liveModel,
+      setupVariant: variant,
+      attempt: attempt + 1,
+    });
+
+    const shouldRetrySetup =
+      !wasManual &&
+      !state.liveSetupComplete &&
+      attempt < LIVE_SETUP_VARIANTS.length - 1 &&
+      (event.code === 1007 || event.code === 1008);
+
+    if (shouldRetrySetup) {
+      const nextAttempt = attempt + 1;
+      const nextVariant = getLiveSetupVariant(nextAttempt);
+      console.info("[AI Live] retrying setup with reduced fields", {
+        nextVariant,
+        nextAttempt: nextAttempt + 1,
+      });
+      state.liveSocket = null;
+      state.liveReady = false;
+      updateLiveControls();
+      connectLiveSocket(nextAttempt).catch(handleLiveStartupError);
+      return;
+    }
+
+    cleanupLiveConnection();
+    if (!wasManual && state.started) {
+      setLiveStatus("실시간 음성 연결이 끊겼습니다. 다시 시도할 수 있습니다.", "error");
+      setConnection("AI Live 끊김", "red");
+      showApiNotice(
+        `실시간 음성 연결이 종료되었습니다. (${event.code || "unknown"}${event.reason ? `: ${event.reason}` : ""})`,
+        startLiveInterview,
+      );
+    }
+  };
+}
+
 async function startLiveInterview() {
   if (state.liveMode || state.busy) return;
 
@@ -931,75 +1054,18 @@ async function startLiveInterview() {
   state.liveOutputBuffer = "";
   state.liveOutputTime = 0;
   state.liveManualClose = false;
+  state.liveSetupAttempt = 0;
+  state.liveSetupComplete = false;
+  state.liveSetupVariant = "full";
   updateLiveControls();
   setConnection("AI Live 연결 중", "amber");
   setLiveStatus("실시간 음성 세션을 준비하고 있습니다.", "live");
   elements.liveTranscript.textContent = "AI와 실시간 연결 중입니다.";
 
   try {
-    const tokenData = await requestLiveToken();
-    state.liveModel = tokenData.model || "gemini-3.1-flash-live-preview";
-    console.info("[AI Live] token issued", { model: state.liveModel });
-    const socket = new WebSocket(
-      `${LIVE_WS_ENDPOINT}?access_token=${encodeURIComponent(tokenData.token)}`,
-    );
-    state.liveSocket = socket;
-
-    socket.onopen = () => {
-      setLiveStatus("AI 음성 세션을 설정하고 있습니다.", "live");
-      const setupMessage = {
-        setup: {
-          model: normalizeLiveModelName(state.liveModel),
-          generationConfig: {
-            responseModalities: ["AUDIO"],
-            temperature: 0.7,
-          },
-          systemInstruction: {
-            parts: [{ text: buildLiveSystemInstruction() }],
-          },
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
-        },
-      };
-      console.info("[AI Live] sending setup", { model: setupMessage.setup.model });
-      sendLiveMessage(setupMessage);
-    };
-
-    socket.onmessage = (event) => {
-      handleLiveMessage(event.data);
-    };
-
-    socket.onerror = (event) => {
-      console.error("[AI Live] websocket error", event);
-      setLiveStatus("실시간 음성 연결 오류가 발생했습니다.", "error");
-      setConnection("AI Live 실패", "red");
-    };
-
-    socket.onclose = (event) => {
-      const wasManual = state.liveManualClose;
-      console.warn("[AI Live] websocket closed", {
-        code: event.code,
-        reason: event.reason,
-        wasClean: event.wasClean,
-        wasManual,
-        model: state.liveModel,
-      });
-      cleanupLiveConnection();
-      if (!wasManual && state.started) {
-        setLiveStatus("실시간 음성 연결이 끊겼습니다. 재시도할 수 있습니다.", "error");
-        setConnection("AI Live 끊김", "red");
-        showApiNotice(
-          `실시간 음성 연결이 종료되었습니다. (${event.code || "unknown"})`,
-          startLiveInterview,
-        );
-      }
-    };
+    await connectLiveSocket(0);
   } catch (error) {
-    stopLiveInterview(false);
-    const message = getReadableError(error);
-    setConnection("AI Live 실패", "red");
-    setLiveStatus(message, "error");
-    showApiNotice(message, startLiveInterview);
+    handleLiveStartupError(error);
   }
 }
 
@@ -1011,6 +1077,9 @@ function cleanupLiveConnection() {
   state.liveManualClose = false;
   state.liveInputBuffer = "";
   state.liveOutputBuffer = "";
+  state.liveSetupComplete = false;
+  state.liveSetupAttempt = 0;
+  state.liveSetupVariant = "full";
   updateLiveControls();
 }
 
@@ -1040,6 +1109,11 @@ function handleLiveMessage(rawMessage) {
 
   if (response.setupComplete) {
     state.liveReady = true;
+    state.liveSetupComplete = true;
+    console.info("[AI Live] setup complete", {
+      setupVariant: state.liveSetupVariant,
+      attempt: state.liveSetupAttempt + 1,
+    });
     setConnection("AI Live 연결됨", "green");
     setLiveStatus("실시간 음성 면접 진행 중입니다. 자연스럽게 답변하세요.", "live");
     elements.liveTranscript.textContent = "마이크를 통해 바로 답변할 수 있습니다.";
