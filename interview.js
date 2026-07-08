@@ -1466,31 +1466,69 @@ async function generateReport() {
 
 function printReportAsPdf() {
   if (!state.lastReport) return;
-  const iframe = document.createElement("iframe");
-  iframe.title = "AI 면접 리포트 PDF";
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
 
-  const cleanup = () => {
-    window.setTimeout(() => iframe.remove(), 1000);
-  };
+  document.querySelectorAll("iframe[data-report-print-frame]").forEach((frame) => frame.remove());
 
-  iframe.onload = () => {
-    iframe.contentWindow?.focus();
-    iframe.contentWindow?.print();
-    iframe.contentWindow?.addEventListener("afterprint", cleanup, { once: true });
-    window.setTimeout(cleanup, 3000);
-  };
-
-  document.body.appendChild(iframe);
-  iframe.srcdoc = buildPrintableReportDocument(
+  const printableDocument = buildPrintableReportDocument(
     state.lastReport.analysis,
     state.lastReport.aiReport,
   );
+  const iframe = document.createElement("iframe");
+  iframe.title = "AI 면접 리포트 PDF";
+  iframe.dataset.reportPrintFrame = "true";
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.left = "-10000px";
+  iframe.style.top = "0";
+  iframe.style.width = "1024px";
+  iframe.style.height = "768px";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.style.pointerEvents = "none";
+
+  let printStarted = false;
+  let cleanupTimer = null;
+
+  const cleanup = () => {
+    if (cleanupTimer) {
+      window.clearTimeout(cleanupTimer);
+      cleanupTimer = null;
+    }
+    window.setTimeout(() => iframe.remove(), 500);
+  };
+
+  const startPrint = async () => {
+    if (printStarted) return;
+    const frameWindow = iframe.contentWindow;
+    const frameDocument = iframe.contentDocument;
+    if (!frameWindow || !frameDocument?.querySelector(".print-page")) return;
+    printStarted = true;
+    iframe.removeEventListener("load", startPrint);
+
+    try {
+      await frameDocument.fonts?.ready;
+    } catch (error) {
+      // Font readiness is best-effort; the report should still be printable.
+    }
+
+    window.setTimeout(() => {
+      try {
+        frameWindow.focus();
+        frameWindow.addEventListener("afterprint", cleanup, { once: true });
+        cleanupTimer = window.setTimeout(cleanup, 120000);
+        frameWindow.print();
+      } catch (error) {
+        cleanup();
+        elements.apiNotice.hidden = false;
+        elements.apiNotice.textContent =
+          "PDF 인쇄 창을 열 수 없습니다. 브라우저의 인쇄 권한을 확인한 뒤 다시 시도해 주세요.";
+      }
+    }, 100);
+  };
+
+  iframe.addEventListener("load", startPrint);
+  iframe.srcdoc = printableDocument;
+  document.body.appendChild(iframe);
 }
 
 function buildPrintableReportDocument(analysis, aiReport = null) {
