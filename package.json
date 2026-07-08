@@ -1,7 +1,4 @@
 {
   "name": "ai-presentation-coach-prototype",
-  "private": true,
-  "dependencies": {
-    "@netlify/functions": "latest"
-  }
+  "private": true
 }
