@@ -4,17 +4,15 @@ const DEFAULT_FORMAT = process.env.TYPECAST_TTS_FORMAT || "mp3";
 const DEFAULT_TEMPO = Number(process.env.TYPECAST_TTS_TEMPO || 1.08);
 const MAX_TTS_CHARS = 1800;
 
-const jsonHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Content-Type": "application/json",
-};
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const jsonHeaders = {
+  ...corsHeaders,
+  "Content-Type": "application/json; charset=utf-8",
 };
 
 exports.handler = async (event) => {
