@@ -1,5 +1,6 @@
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const GEMINI_INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const GEMINI_GENERATE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -25,22 +26,7 @@ exports.handler = async (event) => {
     const payload = JSON.parse(event.body || "{}");
     const mode = payload.mode === "report" ? "report" : "turn";
     const input = mode === "report" ? buildReportInput(payload) : buildTurnInput(payload);
-
-    const response = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": process.env.GEMINI_API_KEY,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        system_instruction: buildSystemInstruction(mode, payload.profile),
-        input,
-        generation_config: {
-          temperature: mode === "report" ? 0.35 : 0.72,
-        },
-      }),
-    });
+    const response = await callGemini(mode, payload, input);
 
     const data = await response.json();
     if (!response.ok) {
@@ -68,6 +54,61 @@ exports.handler = async (event) => {
   }
 };
 
+async function callGemini(mode, payload, input) {
+  if (mode === "report" && hasVideoAttachment(payload)) {
+    return fetch(`${GEMINI_GENERATE_URL}?key=${process.env.GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: buildSystemInstruction(mode, payload.profile, payload) }],
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: input },
+              {
+                inlineData: {
+                  mimeType: payload.mediaMimeType,
+                  data: payload.mediaBase64,
+                },
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.35,
+        },
+      }),
+    });
+  }
+
+  return fetch(GEMINI_INTERACTIONS_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": process.env.GEMINI_API_KEY,
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      system_instruction: buildSystemInstruction(mode, payload.profile, payload),
+      input,
+      generation_config: {
+        temperature: mode === "report" ? 0.35 : 0.72,
+      },
+    }),
+  });
+}
+
+function hasVideoAttachment(payload) {
+  return Boolean(
+    payload?.mediaBase64 &&
+      payload?.mediaMimeType &&
+      /^video\//i.test(payload.mediaMimeType),
+  );
+}
+
 function json(statusCode, body) {
   return {
     statusCode,
@@ -76,14 +117,18 @@ function json(statusCode, body) {
   };
 }
 
-function buildSystemInstruction(mode, profile = {}) {
+function buildSystemInstruction(mode, profile = {}, payload = {}) {
   const persona = profile.personaLabel || "차분한 구조화 면접관";
   const depth = profile.depth || 3;
 
   if (mode === "report") {
+    const videoGuidance = hasVideoAttachment(payload)
+      ? "첨부된 카메라 영상 샘플이 있으면 nonverbalFeedback은 영상에서 실제로 확인되는 시선, 표정, 자세, 제스처를 우선 근거로 작성합니다. 화면에서 확인하기 어려운 항목은 단정하지 않습니다."
+      : "첨부 영상이 없으면 nonverbalFeedback은 프로토타입 시뮬레이션 값을 참고한 완곡한 조언으로만 작성합니다.";
     return [
       "당신은 한국어 면접 코치입니다.",
       "지원자의 답변 기록을 바탕으로 간결하고 실천 가능한 피드백을 제공합니다.",
+      videoGuidance,
       "면접 합격을 보장하거나 과장하지 않습니다.",
       "반드시 JSON만 반환합니다.",
     ].join(" ");
@@ -124,6 +169,7 @@ function buildTurnInput(payload) {
 
 function buildReportInput(payload) {
   const profile = payload.profile || {};
+  const hasVideo = hasVideoAttachment(payload);
   const conversation = (payload.messages || [])
     .map((message, index) => {
       const speaker = message.role === "ai" ? "면접관" : "지원자";
@@ -153,7 +199,9 @@ function buildReportInput(payload) {
     "",
     "면접관 질문의 의도와 지원자 답변의 대응력을 함께 평가하세요.",
     "로컬 분석은 참고 자료이며, 최종 피드백은 대화 기록을 우선해서 판단하세요.",
-    "비언어 분석은 프로토타입 시뮬레이션 값이므로 확정 진단처럼 말하지 말고 완곡하게 표현하세요.",
+    hasVideo
+      ? "비언어 피드백은 첨부된 카메라 영상 샘플에서 실제로 보이는 시선 처리, 표정 변화, 손/제스처, 자세를 중심으로 작성하세요. 로컬 비언어 점수는 더미/시뮬레이션일 수 있으므로 영상 판단보다 우선하지 마세요."
+      : "비언어 분석은 프로토타입 시뮬레이션 값이므로 확정 진단처럼 말하지 말고 완곡하게 표현하세요.",
     "",
     "다음 JSON 스키마로만 반환하세요.",
     "{\"summary\":\"2문장 종합평\",\"strengths\":[\"강점1\",\"강점2\"],\"languageHabits\":[\"언어 습관 피드백1\",\"언어 습관 피드백2\"],\"contentFeedback\":[\"내용 피드백1\",\"내용 피드백2\"],\"nonverbalFeedback\":[\"비언어 피드백1\",\"비언어 피드백2\"],\"improvements\":[\"보완점1\",\"보완점2\",\"보완점3\"],\"practicePlan\":[\"연습1\",\"연습2\",\"연습3\"]}",

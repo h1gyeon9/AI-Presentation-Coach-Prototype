@@ -4,6 +4,14 @@ const TTS_ENDPOINT = "/.netlify/functions/typecast-tts";
 const TTS_CHUNK_MAX_CHARS = 1200;
 const NONVERBAL_TICK_MS = 1600;
 const NONVERBAL_LOG_EVERY_TICKS = 5;
+const NONVERBAL_VIDEO_MAX_BYTES = 3.5 * 1024 * 1024;
+const NONVERBAL_VIDEO_TIMESLICE_MS = 2000;
+const NONVERBAL_VIDEO_BITRATE = 220000;
+const NONVERBAL_VIDEO_CONSTRAINTS = {
+  width: { ideal: 480 },
+  height: { ideal: 360 },
+  facingMode: "user",
+};
 const SILENCE_PROMPT_MS = 10000;
 const SESSION_STORAGE_KEY = "interviewCoachSession.v2";
 const SHARED_REPORT_PREFIX = "interviewCoachSharedReport.";
@@ -58,6 +66,14 @@ const state = {
   },
   nonverbalHistory: [],
   signalEvents: [],
+  nonverbalRecorder: null,
+  nonverbalVideoChunks: [],
+  nonverbalVideoBytes: 0,
+  nonverbalVideoBlob: null,
+  nonverbalVideoMimeType: "",
+  nonverbalVideoStopPromise: null,
+  nonverbalVideoStopResolve: null,
+  nonverbalVideoDiscard: false,
   ttsAudio: null,
   ttsAudioUrl: "",
   ttsBusy: false,
@@ -414,6 +430,147 @@ function startNonverbalSession(mode, statusText) {
   state.nonverbalTimer = window.setInterval(tickNonverbal, NONVERBAL_TICK_MS);
 }
 
+function getSupportedNonverbalVideoType() {
+  if (typeof MediaRecorder === "undefined") return "";
+  const candidates = ["video/webm;codecs=vp8", "video/webm"];
+  return candidates.find((type) => MediaRecorder.isTypeSupported?.(type)) || "";
+}
+
+function clearNonverbalVideoState() {
+  state.nonverbalVideoChunks = [];
+  state.nonverbalVideoBytes = 0;
+  state.nonverbalVideoBlob = null;
+  state.nonverbalVideoMimeType = "";
+}
+
+function resolveNonverbalVideoStop() {
+  if (state.nonverbalVideoStopResolve) {
+    state.nonverbalVideoStopResolve();
+  }
+  state.nonverbalVideoStopPromise = null;
+  state.nonverbalVideoStopResolve = null;
+}
+
+function completeNonverbalVideoCapture() {
+  const shouldDiscard = state.nonverbalVideoDiscard;
+  state.nonverbalRecorder = null;
+
+  if (shouldDiscard) {
+    clearNonverbalVideoState();
+  } else if (state.nonverbalVideoChunks.length) {
+    state.nonverbalVideoBlob = new Blob(state.nonverbalVideoChunks, {
+      type: state.nonverbalVideoMimeType || "video/webm",
+    });
+    state.nonverbalVideoBytes = state.nonverbalVideoBlob.size;
+    if (state.cameraActive && state.nonverbalMode === "live") {
+      elements.cameraStatus.textContent = "Gemini 리포트용 영상 샘플 저장 완료";
+    }
+  }
+
+  state.nonverbalVideoDiscard = false;
+  resolveNonverbalVideoStop();
+}
+
+function stopNonverbalVideoCapture({ discard = false } = {}) {
+  state.nonverbalVideoDiscard = state.nonverbalVideoDiscard || discard;
+
+  if (!state.nonverbalRecorder) {
+    if (discard) clearNonverbalVideoState();
+    return Promise.resolve();
+  }
+
+  if (state.nonverbalVideoStopPromise) return state.nonverbalVideoStopPromise;
+
+  state.nonverbalVideoStopPromise = new Promise((resolve) => {
+    state.nonverbalVideoStopResolve = resolve;
+  });
+  const stopPromise = state.nonverbalVideoStopPromise;
+
+  try {
+    if (state.nonverbalRecorder.state !== "inactive") {
+      state.nonverbalRecorder.stop();
+    } else {
+      completeNonverbalVideoCapture();
+    }
+  } catch (error) {
+    completeNonverbalVideoCapture();
+  }
+
+  return stopPromise;
+}
+
+async function resetNonverbalVideoCapture() {
+  await stopNonverbalVideoCapture({ discard: true });
+  clearNonverbalVideoState();
+}
+
+function startNonverbalVideoCapture(stream) {
+  if (!stream || typeof MediaRecorder === "undefined") {
+    elements.cameraStatus.textContent = "카메라 미리보기 중 · 브라우저 영상 녹화 미지원";
+    return;
+  }
+
+  clearNonverbalVideoState();
+  const mimeType = getSupportedNonverbalVideoType();
+  state.nonverbalVideoMimeType = mimeType || "video/webm";
+
+  try {
+    const options = {
+      videoBitsPerSecond: NONVERBAL_VIDEO_BITRATE,
+      ...(mimeType ? { mimeType } : {}),
+    };
+    const recorder = new MediaRecorder(stream, options);
+    state.nonverbalRecorder = recorder;
+
+    recorder.ondataavailable = (event) => {
+      if (state.nonverbalVideoDiscard || !event.data?.size) return;
+
+      const nextSize = state.nonverbalVideoBytes + event.data.size;
+      if (nextSize <= NONVERBAL_VIDEO_MAX_BYTES) {
+        state.nonverbalVideoChunks.push(event.data);
+        state.nonverbalVideoBytes = nextSize;
+      }
+
+      if (nextSize >= NONVERBAL_VIDEO_MAX_BYTES && recorder.state === "recording") {
+        recorder.stop();
+      }
+    };
+
+    recorder.onstop = completeNonverbalVideoCapture;
+    recorder.onerror = () => {
+      elements.cameraStatus.textContent = "카메라 미리보기 중 · 영상 샘플 저장 실패";
+      completeNonverbalVideoCapture();
+    };
+
+    recorder.start(NONVERBAL_VIDEO_TIMESLICE_MS);
+    elements.cameraStatus.textContent = "카메라 미리보기 및 Gemini용 영상 샘플 저장 중";
+  } catch (error) {
+    state.nonverbalRecorder = null;
+    clearNonverbalVideoState();
+    elements.cameraStatus.textContent = "카메라 미리보기 중 · 영상 샘플 저장 불가";
+  }
+}
+
+async function prepareNonverbalVideoPayload() {
+  if (state.nonverbalRecorder?.state === "recording") {
+    elements.cameraStatus.textContent = "Gemini 리포트용 영상 샘플 정리 중";
+    try {
+      state.nonverbalRecorder.requestData();
+    } catch (error) {
+      // 일부 브라우저는 stop 직전 requestData 호출을 허용하지 않는다.
+    }
+    await stopNonverbalVideoCapture();
+  }
+
+  if (!state.nonverbalVideoBlob?.size) return null;
+  if (state.nonverbalVideoBlob.size > NONVERBAL_VIDEO_MAX_BYTES) return null;
+
+  return {
+    mediaBase64: await fileToBase64(state.nonverbalVideoBlob),
+    mediaMimeType: state.nonverbalVideoBlob.type || state.nonverbalVideoMimeType || "video/webm",
+  };
+}
+
 function stopNonverbalSession(clearHistory = false) {
   window.clearInterval(state.nonverbalTimer);
   state.nonverbalTimer = null;
@@ -451,18 +608,15 @@ async function startCamera() {
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        width: { ideal: 720 },
-        height: { ideal: 480 },
-        facingMode: "user",
-      },
+      video: NONVERBAL_VIDEO_CONSTRAINTS,
       audio: false,
     });
     state.cameraStream = stream;
     state.cameraActive = true;
     elements.cameraPreview.srcObject = stream;
     await elements.cameraPreview.play().catch(() => {});
-    startNonverbalSession("live", "얼굴 위치와 비언어 신호 분석 중");
+    startNonverbalSession("live", "카메라 미리보기 및 Gemini용 영상 샘플 저장 중");
+    startNonverbalVideoCapture(stream);
   } catch (error) {
     state.cameraActive = false;
     state.cameraStream = null;
@@ -474,6 +628,7 @@ async function startCamera() {
 }
 
 function stopCamera(clearHistory = false) {
+  stopNonverbalVideoCapture({ discard: clearHistory });
   if (state.cameraStream) {
     state.cameraStream.getTracks().forEach((track) => track.stop());
   }
@@ -483,10 +638,11 @@ function stopCamera(clearHistory = false) {
   stopNonverbalSession(clearHistory);
 }
 
-function startDemoMode() {
+async function startDemoMode() {
   if (state.cameraActive) {
     stopCamera(false);
   }
+  await resetNonverbalVideoCapture();
   startNonverbalSession("demo", "가상 비언어 신호 분석 중");
 }
 
@@ -935,7 +1091,8 @@ async function parseResumeDocument(file) {
 
 async function callGemini(mode, payload) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 18000);
+  const timeoutMs = mode === "report" ? 28000 : 18000;
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(API_ENDPOINT, {
@@ -1033,6 +1190,10 @@ async function startInterview() {
   elements.answerInput.disabled = false;
   elements.sendButton.disabled = false;
   elements.micButton.disabled = !state.recognitionSupported || state.textInputMode;
+  await resetNonverbalVideoCapture();
+  if (state.cameraActive) {
+    startNonverbalVideoCapture(state.cameraStream);
+  }
   updateMetrics();
   persistSession();
   await requestInterviewer("");
@@ -1445,11 +1606,14 @@ async function generateReport() {
   elements.reportButton.textContent = "생성 중";
 
   try {
+    const nonverbalMedia = await prepareNonverbalVideoPayload();
     const data = await callGemini("report", {
       profile: getProfile(),
       answers: state.answers,
       messages: state.messages,
       localAnalysis: analysis,
+      mediaBase64: nonverbalMedia?.mediaBase64,
+      mediaMimeType: nonverbalMedia?.mediaMimeType,
     });
     const report = normalizeReport(data);
     renderReport(analysis, report);
