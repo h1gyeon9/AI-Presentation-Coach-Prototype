@@ -1,6 +1,9 @@
 const MAX_MEDIA_BYTES = 4 * 1024 * 1024; // base64 인코딩(+33%) 후에도 Netlify 함수/로컬 dev 서버의 요청 한도를 넘지 않도록 여유치를 둠
 const MIN_SCRIPT_LENGTH = 100;
 const MIN_RECORD_SECONDS = 10;
+// 로컬 netlify dev(및 실제 Netlify 동기 함수)는 응답까지 약 30초 제한이 있어,
+// 영상이 길어질수록 Gemini 응답이 늦어져 타임아웃날 위험이 커진다. 그래서 녹화 자체를 짧게 제한한다.
+const MAX_RECORD_SECONDS = 45;
 const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime"];
 
 // 기본 웹캠 녹화는 화질/비트레이트가 높아 몇 초 만에 용량 한도를 넘기 때문에,
@@ -57,6 +60,8 @@ const generateReportBtn = document.getElementById("generate-report-btn");
 const resetReportBtn = document.getElementById("reset-report-btn");
 const reportContent = document.getElementById("report-content");
 const reportHint = document.getElementById("report-hint");
+const exportPdfBtn = document.getElementById("export-pdf-btn");
+const printMeta = document.getElementById("print-meta");
 const nonverbalReportSection = document.getElementById("nonverbal-report-section");
 const nonverbalReportContent = document.getElementById("nonverbal-report-content");
 
@@ -211,6 +216,10 @@ function startTimer() {
   timerInterval = setInterval(() => {
     elapsedSeconds += 1;
     statTime.textContent = formatTime(elapsedSeconds);
+    if (elapsedSeconds >= MAX_RECORD_SECONDS && recorder && recorder.state === "recording") {
+      pushLogEntry(`최대 레코딩 시간(${MAX_RECORD_SECONDS}초)에 도달해 자동으로 종료합니다.`);
+      recorder.stop();
+    }
   }, 1000);
 }
 
@@ -367,6 +376,7 @@ function setScriptConfirmed(confirmed) {
 function clearMedia() {
   stopActiveStream();
   stopMetricsTicking();
+  camBox.classList.remove("scanning");
   if (videoPreview.src) {
     URL.revokeObjectURL(videoPreview.src);
     videoPreview.removeAttribute("src");
@@ -440,6 +450,7 @@ function beginRecording(stream) {
   };
   recorder.onstop = () => {
     stopMetricsTicking();
+    camBox.classList.remove("scanning");
     const recordedSeconds = elapsedSeconds;
     stream.getTracks().forEach((track) => track.stop());
     activeStream = null;
@@ -477,6 +488,7 @@ function beginRecording(stream) {
   recordBtn.textContent = recordBtn.dataset.recordingLabel;
   recordBtn.classList.add("recording");
   camCaption.textContent = "레코딩 중입니다. 완료를 누르면 저장됩니다.";
+  if (cameraOn) camBox.classList.add("scanning");
   startTimer();
   startMetricsTicking();
   pushLogEntry(`${RECORD_LABEL} 시작`);
@@ -579,9 +591,14 @@ resetReportBtn.addEventListener("click", () => {
   setContent(reportContent, "리포트를 생성하면 이곳에 표시됩니다.", true);
   nonverbalReportSection.hidden = true;
   setContent(nonverbalReportContent, "영상 모드로 리포트를 생성하면 이곳에 표시됩니다.", true);
+  printMeta.textContent = "";
   if (statusBadge.classList.contains("done")) {
     setStatus(null, "Gemini 대기");
   }
+});
+
+exportPdfBtn.addEventListener("click", () => {
+  window.print();
 });
 
 generateReportBtn.addEventListener("click", async () => {
@@ -645,6 +662,10 @@ generateReportBtn.addEventListener("click", async () => {
     } else {
       nonverbalReportSection.hidden = true;
     }
+
+    const audienceLabel = audienceSelect.selectedOptions[0]?.textContent || "";
+    const generatedAt = new Date().toLocaleString("ko-KR");
+    printMeta.textContent = `AI Presentation Coach 리포트 · 모드: ${getModeLabel()} · 청중: ${audienceLabel} · 생성 시각: ${generatedAt}`;
 
     coachStatusLine.textContent = "분석이 완료됐습니다.";
     setStatus("done", "분석 완료");

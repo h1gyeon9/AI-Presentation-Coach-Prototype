@@ -67,7 +67,11 @@ exports.handler = async (event) => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ role: "user", parts }] }),
+        body: JSON.stringify({
+          contents: [{ role: "user", parts }],
+          // 로컬/실서비스 함수 타임아웃(약 30초)을 넘기지 않도록 thinking을 꺼서 응답 속도를 높인다.
+          generationConfig: { thinkingConfig: { thinkingBudget: 0 } },
+        }),
       }
     );
 

@@ -343,6 +343,49 @@ a {
   overflow: hidden;
 }
 
+.cam-box.scanning::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(49, 87, 201, 0.9), transparent);
+  box-shadow: 0 0 8px rgba(49, 87, 201, 0.8);
+  animation: scan-sweep 2.2s linear infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.cam-box.scanning::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 2px solid rgba(49, 87, 201, 0.55);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 1;
+  animation: pulse-border 1.6s ease-in-out infinite;
+}
+
+@keyframes scan-sweep {
+  0% {
+    top: 0%;
+  }
+  100% {
+    top: 100%;
+  }
+}
+
+@keyframes pulse-border {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
 .cam-placeholder {
   color: rgba(255, 255, 255, 0.5);
   font-size: 28px;
@@ -583,5 +626,49 @@ a {
 
   .analysis-body {
     grid-template-columns: 1fr;
+  }
+}
+
+.full-width {
+  width: 100%;
+}
+
+.print-meta {
+  display: none;
+}
+
+@media print {
+  .dashboard-header,
+  .settings-panel,
+  .practice-panel,
+  .report-actions,
+  #export-pdf-btn,
+  .report-hint {
+    display: none !important;
+  }
+
+  .dashboard-grid {
+    display: block;
+  }
+
+  .report-panel {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  .print-meta {
+    display: block;
+    margin: 0 0 16px;
+    color: #444;
+    font-size: 12px;
+  }
+
+  .report-content {
+    max-height: none;
+    overflow: visible;
+    border: none;
+    padding: 0;
+    page-break-inside: avoid;
   }
 }
