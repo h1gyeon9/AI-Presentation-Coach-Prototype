@@ -12,6 +12,10 @@ const AUDIO_BITRATE = 32000;
 const RECORD_LABEL = "레코딩";
 const SPEECH_CHARS_PER_MINUTE = 300; // 한국어 발표 발화 속도 추정치 (분당 글자 수)
 
+// netlify/functions/analyze.js의 CONTENT_MARKER/NONVERBAL_MARKER와 정확히 일치해야 함
+const CONTENT_MARKER = "## 내용 리포트";
+const NONVERBAL_MARKER = "## 비언어 리포트";
+
 const statusBadge = document.getElementById("status-badge");
 const scriptText = document.getElementById("script-text");
 const audienceSelect = document.getElementById("audience-select");
@@ -53,6 +57,8 @@ const generateReportBtn = document.getElementById("generate-report-btn");
 const resetReportBtn = document.getElementById("reset-report-btn");
 const reportContent = document.getElementById("report-content");
 const reportHint = document.getElementById("report-hint");
+const nonverbalReportSection = document.getElementById("nonverbal-report-section");
+const nonverbalReportContent = document.getElementById("nonverbal-report-content");
 
 let scriptConfirmed = false;
 let cameraOn = false;
@@ -154,6 +160,25 @@ function renderMarkdownLite(raw) {
   return htmlParts.join("");
 }
 
+function splitReportSections(feedback) {
+  const contentIndex = feedback.indexOf(CONTENT_MARKER);
+  const nonverbalIndex = feedback.indexOf(NONVERBAL_MARKER);
+
+  if (contentIndex === -1) {
+    // 모델이 지정된 제목 형식을 따르지 않은 경우, 전체를 내용 리포트로 취급
+    return { content: feedback.trim(), nonverbal: "" };
+  }
+
+  if (nonverbalIndex === -1) {
+    return { content: feedback.slice(contentIndex + CONTENT_MARKER.length).trim(), nonverbal: "" };
+  }
+
+  return {
+    content: feedback.slice(contentIndex + CONTENT_MARKER.length, nonverbalIndex).trim(),
+    nonverbal: feedback.slice(nonverbalIndex + NONVERBAL_MARKER.length).trim(),
+  };
+}
+
 function setContent(container, text, isPlaceholder) {
   container.innerHTML = "";
   if (isPlaceholder) {
@@ -166,32 +191,6 @@ function setContent(container, text, isPlaceholder) {
   const wrap = document.createElement("div");
   wrap.className = "result-text";
   wrap.innerHTML = renderMarkdownLite(text);
-  container.appendChild(wrap);
-}
-
-function setScriptComparison(container, originalText, feedbackText) {
-  container.innerHTML = "";
-  const wrap = document.createElement("div");
-  wrap.className = "script-compare";
-
-  const originalCol = document.createElement("div");
-  originalCol.className = "script-compare-col";
-  originalCol.innerHTML = "<h4>원본 대본</h4>";
-  const originalP = document.createElement("p");
-  originalP.className = "compare-text";
-  originalP.textContent = originalText;
-  originalCol.appendChild(originalP);
-
-  const feedbackCol = document.createElement("div");
-  feedbackCol.className = "script-compare-col";
-  feedbackCol.innerHTML = "<h4>AI 피드백</h4>";
-  const feedbackBody = document.createElement("div");
-  feedbackBody.className = "compare-text";
-  feedbackBody.innerHTML = renderMarkdownLite(feedbackText);
-  feedbackCol.appendChild(feedbackBody);
-
-  wrap.appendChild(originalCol);
-  wrap.appendChild(feedbackCol);
   container.appendChild(wrap);
 }
 
@@ -578,6 +577,8 @@ resetBtn.addEventListener("click", () => {
 
 resetReportBtn.addEventListener("click", () => {
   setContent(reportContent, "리포트를 생성하면 이곳에 표시됩니다.", true);
+  nonverbalReportSection.hidden = true;
+  setContent(nonverbalReportContent, "영상 모드로 리포트를 생성하면 이곳에 표시됩니다.", true);
   if (statusBadge.classList.contains("done")) {
     setStatus(null, "Gemini 대기");
   }
@@ -602,6 +603,7 @@ generateReportBtn.addEventListener("click", async () => {
   coachStatusLine.textContent = "분석 중입니다...";
   setContent(coachFeedbackContent, "분석 중입니다...", true);
   setContent(reportContent, "분석 중입니다...", true);
+  nonverbalReportSection.hidden = true;
 
   try {
     let mediaBase64 = null;
@@ -632,13 +634,18 @@ generateReportBtn.addEventListener("click", async () => {
       throw new Error(data.error || "분석 요청이 실패했습니다.");
     }
 
-    if (mode === "script") {
-      setScriptComparison(coachFeedbackContent, script, data.feedback);
-      setContent(reportContent, "분석이 완료됐습니다. 왼쪽 'AI 코치'에서 원본 대본과 피드백을 나란히 확인하세요.", true);
+    const { content, nonverbal } = splitReportSections(data.feedback);
+
+    setContent(coachFeedbackContent, "분석이 완료됐습니다. 오른쪽 리포트를 확인하세요.", true);
+    setContent(reportContent, content, false);
+
+    if (mode === "video" && nonverbal) {
+      nonverbalReportSection.hidden = false;
+      setContent(nonverbalReportContent, nonverbal, false);
     } else {
-      setContent(coachFeedbackContent, "분석이 완료됐습니다. 오른쪽 리포트를 확인하세요.", true);
-      setContent(reportContent, data.feedback, false);
+      nonverbalReportSection.hidden = true;
     }
+
     coachStatusLine.textContent = "분석이 완료됐습니다.";
     setStatus("done", "분석 완료");
   } catch (err) {
