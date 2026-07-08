@@ -41,41 +41,13 @@ exports.handler = async (event) => {
       });
     }
 
-    const response = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": process.env.GEMINI_API_KEY,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        input: buildTtsInput(text.slice(0, MAX_TTS_CHARS), payload.style),
-        response_format: { type: "audio" },
-        generation_config: {
-          speech_config: [{ voice }],
-        },
-      }),
-    });
+    const prompt = buildTtsInput(text.slice(0, MAX_TTS_CHARS), payload.style);
+    const sdkAudio = await createAudioWithSdk(prompt, voice);
+    const audio = sdkAudio || (await createAudioWithRest(prompt, voice));
 
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      console.warn("[AI TTS] API request failed", {
-        status: response.status,
-        code: data.error?.status,
-        message: sanitizeError(data.error?.message || ""),
-      });
-      return json(200, {
-        code: data.error?.status || "TTS_API_ERROR",
-        error: sanitizeError(data.error?.message || "AI 음성 생성 요청에 실패했습니다."),
-        audioUnavailable: true,
-      });
-    }
-
-    const audio = extractAudio(data);
     if (!audio?.data) {
       console.warn("[AI TTS] empty audio response", {
         model: MODEL,
-        responseShape: summarizeShape(data),
       });
       return json(200, {
         code: "EMPTY_AUDIO",
@@ -84,13 +56,15 @@ exports.handler = async (event) => {
       });
     }
 
-    const pcm = Buffer.from(audio.data, "base64");
+    const audioBytes = Buffer.from(audio.data, "base64");
     const sampleRate = getSampleRate(audio.mimeType) || DEFAULT_SAMPLE_RATE;
-    const wav = wrapPcmAsWav(pcm, {
-      channels: 1,
-      sampleRate,
-      bitsPerSample: 16,
-    });
+    const wav = isWavAudio(audioBytes, audio.mimeType)
+      ? audioBytes
+      : wrapPcmAsWav(audioBytes, {
+          channels: 1,
+          sampleRate,
+          bitsPerSample: 16,
+        });
 
     return json(200, {
       audioBase64: wav.toString("base64"),
@@ -98,6 +72,7 @@ exports.handler = async (event) => {
       model: MODEL,
       voice,
       sampleRate,
+      provider: sdkAudio ? "sdk" : "rest",
     });
   } catch (error) {
     console.warn("[AI TTS] unexpected failure", {
@@ -111,6 +86,67 @@ exports.handler = async (event) => {
     });
   }
 };
+
+async function createAudioWithSdk(input, voice) {
+  try {
+    const { GoogleGenAI } = await import("@google/genai");
+    const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const interaction = await client.interactions.create({
+      model: MODEL,
+      input,
+      response_format: { type: "audio" },
+      generation_config: {
+        speech_config: [{ voice }],
+      },
+      store: false,
+    });
+    return extractAudio(interaction);
+  } catch (error) {
+    console.warn("[AI TTS] SDK path failed", {
+      code: error.code,
+      message: sanitizeError(error.message || ""),
+    });
+    return null;
+  }
+}
+
+async function createAudioWithRest(input, voice) {
+  const response = await fetch(GEMINI_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": process.env.GEMINI_API_KEY,
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      input,
+      response_format: { type: "audio" },
+      generation_config: {
+        speech_config: [{ voice }],
+      },
+      store: false,
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    console.warn("[AI TTS] API request failed", {
+      status: response.status,
+      code: data.error?.status,
+      message: sanitizeError(data.error?.message || ""),
+    });
+    return null;
+  }
+
+  const audio = extractAudio(data);
+  if (!audio?.data) {
+    console.warn("[AI TTS] REST empty audio response", {
+      model: MODEL,
+      responseShape: summarizeShape(data),
+    });
+  }
+  return audio;
+}
 
 function buildTtsInput(text, style) {
   const styleLine =
@@ -202,6 +238,13 @@ function summarizeShape(value, depth = 0) {
 function getSampleRate(mimeType = "") {
   const match = String(mimeType).match(/rate=(\d+)/i);
   return match ? Number(match[1]) : null;
+}
+
+function isWavAudio(buffer, mimeType = "") {
+  return (
+    String(mimeType).toLowerCase().includes("wav") ||
+    buffer.subarray(0, 4).toString("ascii") === "RIFF"
+  );
 }
 
 function wrapPcmAsWav(pcm, { channels, sampleRate, bitsPerSample }) {

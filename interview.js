@@ -584,7 +584,15 @@ function stopTtsPlayback() {
     state.ttsCancel();
     state.ttsCancel = null;
   }
+  window.speechSynthesis?.cancel();
   updateMetrics();
+}
+
+function setAnswerReadyStatus() {
+  if (!state.started) return;
+  elements.liveTranscript.textContent = state.recognitionSupported && !state.textInputMode
+    ? "REC 버튼을 눌러 답변하세요."
+    : "텍스트 입력 모드입니다. 답변을 입력하고 전송하세요.";
 }
 
 async function requestTtsAudio(text) {
@@ -621,11 +629,7 @@ async function speak(text) {
     const data = await requestTtsAudio(text);
     if (requestId !== state.ttsRequestId || !state.voiceEnabled) return;
     if (data.audioUnavailable) {
-      state.ttsBusy = false;
-      elements.liveTranscript.textContent = state.recognitionSupported && !state.textInputMode
-        ? "REC 버튼을 눌러 답변하세요."
-        : "텍스트 입력 모드입니다. 답변을 입력하고 전송하세요.";
-      updateMetrics();
+      await speakWithBrowserVoice(text);
       return;
     }
 
@@ -672,9 +676,56 @@ async function speak(text) {
     }
     state.ttsCancel = null;
     state.ttsBusy = false;
-    elements.liveTranscript.textContent = "AI 음성 출력에 실패했습니다. 텍스트로 답변을 확인해 주세요.";
-    updateMetrics();
+    await speakWithBrowserVoice(text);
   }
+}
+
+async function speakWithBrowserVoice(text) {
+  if (!state.voiceEnabled || !("speechSynthesis" in window)) {
+    state.ttsBusy = false;
+    setAnswerReadyStatus();
+    updateMetrics();
+    return;
+  }
+
+  state.ttsBusy = true;
+  elements.liveTranscript.textContent = "AI 음성을 재생 중입니다.";
+  updateMetrics();
+
+  await new Promise((resolve) => {
+    let settled = false;
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voices = window.speechSynthesis.getVoices();
+    const timeoutMs = Math.min(30000, Math.max(5000, text.length * 85));
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      state.ttsCancel = null;
+      state.ttsBusy = false;
+      setAnswerReadyStatus();
+      updateMetrics();
+      resolve();
+    };
+
+    const timer = window.setTimeout(finish, timeoutMs);
+    state.ttsCancel = () => {
+      window.speechSynthesis.cancel();
+      finish();
+    };
+    utterance.lang = "ko-KR";
+    utterance.rate = 0.94;
+    utterance.pitch = 0.96;
+    utterance.voice =
+      voices.find((voice) => voice.lang.toLowerCase().startsWith("ko")) ||
+      voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ||
+      null;
+    utterance.onend = finish;
+    utterance.onerror = finish;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  });
 }
 
 function switchToTextMode(message) {
