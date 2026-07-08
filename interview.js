@@ -578,6 +578,11 @@ function clearChat() {
 function stopTtsPlayback() {
   state.ttsRequestId += 1;
   state.ttsBusy = false;
+  if (state.ttsCancel) {
+    const cancel = state.ttsCancel;
+    state.ttsCancel = null;
+    cancel();
+  }
   if (state.ttsAudio) {
     state.ttsAudio.pause();
     state.ttsAudio.removeAttribute("src");
@@ -587,10 +592,6 @@ function stopTtsPlayback() {
   if (state.ttsAudioUrl) {
     URL.revokeObjectURL(state.ttsAudioUrl);
     state.ttsAudioUrl = "";
-  }
-  if (state.ttsCancel) {
-    state.ttsCancel();
-    state.ttsCancel = null;
   }
   updateMetrics();
 }
@@ -613,12 +614,13 @@ function getFastTtsText(text) {
     : selected;
 }
 
-async function requestTtsAudio(text) {
+async function requestTtsAudio(text, signal) {
   const spokenText = getFastTtsText(text);
   if (!spokenText) return { audioUnavailable: true };
   const response = await fetch(TTS_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal,
     body: JSON.stringify({
       text: spokenText,
       voice: "Kore",
@@ -627,9 +629,8 @@ async function requestTtsAudio(text) {
   });
   const contentType = response.headers.get("Content-Type") || "";
   if (response.ok && contentType.includes("audio/")) {
-    const blob = await response.blob();
     return {
-      audioUrl: URL.createObjectURL(blob),
+      response,
       mimeType: contentType,
     };
   }
@@ -641,6 +642,198 @@ async function requestTtsAudio(text) {
     throw error;
   }
   return { ...data, audioUnavailable: true };
+}
+
+function getSupportedStreamMimeType(contentType) {
+  if (!window.MediaSource?.isTypeSupported) return "";
+  const value = String(contentType || "").toLowerCase();
+  const candidates = value.includes("mpeg") || value.includes("mp3")
+    ? ["audio/mpeg"]
+    : ["audio/mpeg"];
+  return candidates.find((candidate) => MediaSource.isTypeSupported(candidate)) || "";
+}
+
+function getChunkBuffer(value) {
+  return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+}
+
+function finishTtsState(requestId, audio, audioUrl, cancelPlayback) {
+  if (state.ttsCancel === cancelPlayback) {
+    state.ttsCancel = null;
+  }
+  if (state.ttsAudio === audio) {
+    state.ttsAudio = null;
+  }
+  if (state.ttsAudioUrl === audioUrl) {
+    URL.revokeObjectURL(audioUrl);
+    state.ttsAudioUrl = "";
+  }
+  if (requestId === state.ttsRequestId) {
+    state.ttsBusy = false;
+    if (state.started && !state.busy) {
+      setAnswerReadyStatus();
+    }
+    updateMetrics();
+  }
+}
+
+async function playBufferedTts(response, requestId) {
+  const blob = await response.blob();
+  if (requestId !== state.ttsRequestId || !state.voiceEnabled) return;
+
+  const audioUrl = URL.createObjectURL(blob);
+  const audio = new Audio(audioUrl);
+  audio.preload = "auto";
+  state.ttsAudioUrl = audioUrl;
+  state.ttsAudio = audio;
+
+  await new Promise((resolve, reject) => {
+    let settled = false;
+    const cancelPlayback = () => finish();
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      finishTtsState(requestId, audio, audioUrl, cancelPlayback);
+      resolve();
+    };
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      finishTtsState(requestId, audio, audioUrl, cancelPlayback);
+      reject(error);
+    };
+    state.ttsCancel = cancelPlayback;
+    audio.onplay = () => {
+      elements.liveTranscript.textContent = "AI 음성을 재생 중입니다.";
+    };
+    audio.onended = finish;
+    audio.onerror = () => fail(new Error("AI 음성 재생에 실패했습니다."));
+    audio.play().catch(fail);
+  });
+}
+
+async function playStreamingTts(response, mimeType, requestId) {
+  const streamMimeType = getSupportedStreamMimeType(mimeType);
+  if (!response.body || !streamMimeType) {
+    await playBufferedTts(response, requestId);
+    return;
+  }
+
+  const mediaSource = new MediaSource();
+  const audioUrl = URL.createObjectURL(mediaSource);
+  const audio = new Audio(audioUrl);
+  audio.preload = "auto";
+  state.ttsAudioUrl = audioUrl;
+  state.ttsAudio = audio;
+
+  await new Promise((resolve, reject) => {
+    let settled = false;
+    let cancelled = false;
+    let sourceBuffer = null;
+    let streamEnded = false;
+    let reader = null;
+    const queue = [];
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      finishTtsState(requestId, audio, audioUrl, cancelPlayback);
+      resolve();
+    };
+
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      finishTtsState(requestId, audio, audioUrl, cancelPlayback);
+      reject(error);
+    };
+
+    const cancelPlayback = () => {
+      cancelled = true;
+      if (reader) {
+        reader.cancel().catch(() => {});
+      }
+      audio.pause();
+      finish();
+    };
+
+    const endStream = () => {
+      if (
+        settled ||
+        cancelled ||
+        !sourceBuffer ||
+        mediaSource.readyState !== "open" ||
+        sourceBuffer.updating ||
+        queue.length
+      ) {
+        return;
+      }
+      try {
+        mediaSource.endOfStream();
+      } catch (error) {
+        fail(error);
+      }
+    };
+
+    const appendNext = () => {
+      if (settled || cancelled || !sourceBuffer || sourceBuffer.updating) return;
+      if (!queue.length) {
+        if (streamEnded) endStream();
+        return;
+      }
+      try {
+        sourceBuffer.appendBuffer(queue.shift());
+      } catch (error) {
+        fail(error);
+      }
+    };
+
+    state.ttsCancel = cancelPlayback;
+    audio.onplay = () => {
+      elements.liveTranscript.textContent = "AI 음성을 재생 중입니다.";
+    };
+    audio.onended = finish;
+    audio.onerror = () => {
+      if (!cancelled) fail(new Error("AI 음성 재생에 실패했습니다."));
+    };
+
+    mediaSource.addEventListener(
+      "sourceopen",
+      async () => {
+        try {
+          sourceBuffer = mediaSource.addSourceBuffer(streamMimeType);
+          try {
+            sourceBuffer.mode = "sequence";
+          } catch (error) {
+            // Some browsers keep MP3 source buffers in their default mode.
+          }
+          sourceBuffer.addEventListener("updateend", appendNext);
+          audio.play().catch((error) => {
+            if (!cancelled) fail(error);
+          });
+
+          reader = response.body.getReader();
+          while (!cancelled) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (requestId !== state.ttsRequestId || !state.voiceEnabled) {
+              cancelPlayback();
+              return;
+            }
+            if (value?.byteLength) {
+              queue.push(getChunkBuffer(value));
+              appendNext();
+            }
+          }
+          streamEnded = true;
+          appendNext();
+        } catch (error) {
+          if (!cancelled) fail(error);
+        }
+      },
+      { once: true },
+    );
+  });
 }
 
 function warmTts() {
@@ -665,13 +858,19 @@ async function speak(text) {
   if (!state.voiceEnabled || !text) return;
   stopTtsPlayback();
   const requestId = state.ttsRequestId;
+  const controller = new AbortController();
+  const abortRequest = () => controller.abort();
   state.ttsBusy = true;
   elements.liveTranscript.textContent = "AI 음성을 생성하고 있습니다.";
   updateMetrics();
+  state.ttsCancel = abortRequest;
 
   try {
-    const data = await requestTtsAudio(text);
+    const data = await requestTtsAudio(text, controller.signal);
     if (requestId !== state.ttsRequestId || !state.voiceEnabled) return;
+    if (state.ttsCancel === abortRequest) {
+      state.ttsCancel = null;
+    }
     if (data.audioUnavailable) {
       state.ttsBusy = false;
       setAnswerReadyStatus();
@@ -679,47 +878,12 @@ async function speak(text) {
       return;
     }
 
-    const audioUrl = data.audioUrl;
-    const audio = new Audio(audioUrl);
-    state.ttsAudioUrl = audioUrl;
-    state.ttsAudio = audio;
-    audio.onplay = () => {
-      elements.liveTranscript.textContent = "AI 음성을 재생 중입니다.";
-    };
-    await new Promise((resolve, reject) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        state.ttsCancel = null;
-        if (state.ttsAudio === audio) {
-          state.ttsAudio = null;
-          if (state.ttsAudioUrl) {
-            URL.revokeObjectURL(state.ttsAudioUrl);
-            state.ttsAudioUrl = "";
-          }
-          state.ttsBusy = false;
-          if (state.started && !state.busy) {
-            elements.liveTranscript.textContent = state.recognitionSupported && !state.textInputMode
-              ? "REC 버튼을 눌러 답변하세요."
-              : "텍스트 입력 모드입니다. 답변을 입력하고 전송하세요.";
-          }
-          updateMetrics();
-        }
-        resolve();
-      };
-      const fail = (error) => {
-        if (settled) return;
-        settled = true;
-        state.ttsCancel = null;
-        reject(error);
-      };
-      state.ttsCancel = finish;
-      audio.onended = finish;
-      audio.onerror = () => fail(new Error("AI 음성 재생에 실패했습니다."));
-      audio.play().catch(fail);
-    });
+    await playStreamingTts(data.response, data.mimeType, requestId);
   } catch (error) {
+    if (state.ttsCancel === abortRequest) {
+      state.ttsCancel = null;
+    }
+    if (error?.name === "AbortError") return;
     if (requestId !== state.ttsRequestId) return;
     if (state.ttsAudio) {
       state.ttsAudio.pause();
