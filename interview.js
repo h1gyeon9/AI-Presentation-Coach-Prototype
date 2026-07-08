@@ -1383,7 +1383,6 @@ function analyzeAnswers() {
     structureScore: Math.round(structureScore),
     deliveryScore: Math.round(deliveryScore),
     specificityScore: Math.round(specificityScore),
-    nonverbal: analyzeNonverbal(),
   };
 }
 
@@ -1431,8 +1430,6 @@ function localReportHtml(analysis, aiReport = null) {
         `<span class="badge">${escapeHtml(item.keyword)} ${item.matched ? "언급" : "미언급"}</span>`,
     )
     .join("");
-  const nonverbal = analysis.nonverbal;
-
   return `
     <div class="report-tabs" role="tablist" aria-label="리포트 분류">
       <button class="report-tab ${tabClass("language")}" type="button" data-report-tab="language" role="tab" aria-selected="${active === "language"}">언어 습관</button>
@@ -1517,41 +1514,17 @@ function localReportHtml(analysis, aiReport = null) {
 
     <section ${panelAttrs("nonverbal")}>
       ${
-        nonverbal
+        aiReport?.nonverbalFeedback?.length
           ? `
             <section class="report-block">
-              <h3>비언어 요약</h3>
-              <p>종합 안정도는 ${nonverbal.score}점이며, 가장 보완이 필요한 신호는 ${nonverbal.weakest}입니다.</p>
-              <div class="score-grid" style="margin-top: 12px;">
-                <div class="score"><b>${nonverbal.averages.eye}</b><span>시선</span></div>
-                <div class="score"><b>${nonverbal.averages.posture}</b><span>자세</span></div>
-                <div class="score"><b>${nonverbal.averages.expression}</b><span>표정</span></div>
-              </div>
+              <h3>AI 비언어 피드백</h3>
+              <ul>${list(aiReport.nonverbalFeedback, "비언어 피드백이 없습니다.")}</ul>
             </section>
-            <section class="report-block">
-              <h3>제스처 및 관찰</h3>
-              <div class="badge-row"><span class="badge">제스처 ${nonverbal.averages.gesture}</span><span class="badge">샘플 ${nonverbal.samples}개</span></div>
-              <ul style="margin-top: 12px;">${nonverbal.observations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-            </section>
-            <section class="report-block">
-              <h3>세션 중 감지 로그</h3>
-              <ul>${list(state.signalEvents, "세션 중 비언어 로그가 없습니다.")}</ul>
-            </section>
-            ${
-              aiReport?.nonverbalFeedback?.length
-                ? `
-                  <section class="report-block">
-                    <h3>AI 비언어 피드백</h3>
-                    <ul>${list(aiReport.nonverbalFeedback, "비언어 피드백이 없습니다.")}</ul>
-                  </section>
-                `
-                : ""
-            }
           `
           : `
             <section class="report-block">
-              <h3>비언어 데이터 없음</h3>
-              <p>카메라 또는 데모 모드를 켠 뒤 면접을 진행하면 시선, 자세, 표정, 제스처 데이터가 이 탭에 표시됩니다.</p>
+              <h3>AI 비언어 피드백</h3>
+              <p>카메라 영상 샘플을 Gemini가 분석한 결과가 있을 때 이곳에 표시됩니다.</p>
             </section>
           `
       }
