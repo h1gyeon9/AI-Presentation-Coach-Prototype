@@ -75,14 +75,9 @@ async function createLiveToken(model) {
       uses: 1,
       expireTime,
       newSessionExpireTime,
-      liveConnectConstraints: {
-        model,
-        config: {
-          sessionResumption: {},
-          temperature: 0.7,
-          responseModalities: ["AUDIO"],
-        },
-      },
+      // Keep the short-lived token unconstrained for this prototype so the
+      // browser setup can include interview-specific instructions and
+      // transcription settings without being rejected by Live constraints.
       httpOptions: {
         apiVersion: "v1alpha",
       },
