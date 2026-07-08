@@ -1,6 +1,7 @@
 ﻿const API_ENDPOINT = "/.netlify/functions/gemini-interview";
 const DOCUMENT_ENDPOINT = "/.netlify/functions/parse-document";
-const TTS_ENDPOINT = "/.netlify/functions/gemini-tts";
+const TTS_ENDPOINT = "/.netlify/functions/typecast-tts";
+const TTS_MAX_SPOKEN_CHARS = 180;
 const NONVERBAL_TICK_MS = 1600;
 const NONVERBAL_LOG_EVERY_TICKS = 5;
 const SILENCE_PROMPT_MS = 10000;
@@ -58,9 +59,12 @@ const state = {
   nonverbalHistory: [],
   signalEvents: [],
   ttsAudio: null,
+  ttsAudioUrl: "",
   ttsBusy: false,
   ttsRequestId: 0,
   ttsCancel: null,
+  ttsWarmPromise: null,
+  ttsWarmed: false,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -580,11 +584,14 @@ function stopTtsPlayback() {
     state.ttsAudio.load();
     state.ttsAudio = null;
   }
+  if (state.ttsAudioUrl) {
+    URL.revokeObjectURL(state.ttsAudioUrl);
+    state.ttsAudioUrl = "";
+  }
   if (state.ttsCancel) {
     state.ttsCancel();
     state.ttsCancel = null;
   }
-  window.speechSynthesis?.cancel();
   updateMetrics();
 }
 
@@ -595,26 +602,63 @@ function setAnswerReadyStatus() {
     : "텍스트 입력 모드입니다. 답변을 입력하고 전송하세요.";
 }
 
+function getFastTtsText(text) {
+  const normalized = String(text || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  const sentences = normalized.match(/[^.!?。？！]+[.!?。？！]?/g) || [normalized];
+  const question = sentences.find((sentence) => /[?？]\s*$/.test(sentence.trim()));
+  const selected = (question || sentences.slice(0, 2).join(" ")).trim();
+  return selected.length > TTS_MAX_SPOKEN_CHARS
+    ? `${selected.slice(0, TTS_MAX_SPOKEN_CHARS).trim()}...`
+    : selected;
+}
+
 async function requestTtsAudio(text) {
+  const spokenText = getFastTtsText(text);
+  if (!spokenText) return { audioUnavailable: true };
   const response = await fetch(TTS_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      text,
+      text: spokenText,
       voice: "Kore",
       style: "calm-interviewer",
     }),
   });
+  const contentType = response.headers.get("Content-Type") || "";
+  if (response.ok && contentType.includes("audio/")) {
+    const blob = await response.blob();
+    return {
+      audioUrl: URL.createObjectURL(blob),
+      mimeType: contentType,
+    };
+  }
+
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(data.error || "AI 음성 생성에 실패했습니다.");
     error.status = response.status;
     throw error;
   }
-  if (!data.audioBase64) {
-    return { ...data, audioUnavailable: true };
-  }
-  return data;
+  return { ...data, audioUnavailable: true };
+}
+
+function warmTts() {
+  if (!state.voiceEnabled || state.ttsWarmed || state.ttsWarmPromise) return state.ttsWarmPromise;
+  state.ttsWarmed = true;
+  state.ttsWarmPromise = fetch(TTS_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      warmup: true,
+    }),
+  })
+    .then((response) => response.arrayBuffer())
+    .catch(() => null)
+    .finally(() => {
+      state.ttsWarmPromise = null;
+    });
+  return state.ttsWarmPromise;
 }
 
 async function speak(text) {
@@ -629,11 +673,15 @@ async function speak(text) {
     const data = await requestTtsAudio(text);
     if (requestId !== state.ttsRequestId || !state.voiceEnabled) return;
     if (data.audioUnavailable) {
-      await speakWithBrowserVoice(text);
+      state.ttsBusy = false;
+      setAnswerReadyStatus();
+      updateMetrics();
       return;
     }
 
-    const audio = new Audio(`data:${data.mimeType || "audio/wav"};base64,${data.audioBase64}`);
+    const audioUrl = data.audioUrl;
+    const audio = new Audio(audioUrl);
+    state.ttsAudioUrl = audioUrl;
     state.ttsAudio = audio;
     audio.onplay = () => {
       elements.liveTranscript.textContent = "AI 음성을 재생 중입니다.";
@@ -646,6 +694,10 @@ async function speak(text) {
         state.ttsCancel = null;
         if (state.ttsAudio === audio) {
           state.ttsAudio = null;
+          if (state.ttsAudioUrl) {
+            URL.revokeObjectURL(state.ttsAudioUrl);
+            state.ttsAudioUrl = "";
+          }
           state.ttsBusy = false;
           if (state.started && !state.busy) {
             elements.liveTranscript.textContent = state.recognitionSupported && !state.textInputMode
@@ -674,58 +726,15 @@ async function speak(text) {
       state.ttsAudio.removeAttribute("src");
       state.ttsAudio = null;
     }
+    if (state.ttsAudioUrl) {
+      URL.revokeObjectURL(state.ttsAudioUrl);
+      state.ttsAudioUrl = "";
+    }
     state.ttsCancel = null;
-    state.ttsBusy = false;
-    await speakWithBrowserVoice(text);
-  }
-}
-
-async function speakWithBrowserVoice(text) {
-  if (!state.voiceEnabled || !("speechSynthesis" in window)) {
     state.ttsBusy = false;
     setAnswerReadyStatus();
     updateMetrics();
-    return;
   }
-
-  state.ttsBusy = true;
-  elements.liveTranscript.textContent = "AI 음성을 재생 중입니다.";
-  updateMetrics();
-
-  await new Promise((resolve) => {
-    let settled = false;
-    const utterance = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-    const timeoutMs = Math.min(30000, Math.max(5000, text.length * 85));
-
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timer);
-      state.ttsCancel = null;
-      state.ttsBusy = false;
-      setAnswerReadyStatus();
-      updateMetrics();
-      resolve();
-    };
-
-    const timer = window.setTimeout(finish, timeoutMs);
-    state.ttsCancel = () => {
-      window.speechSynthesis.cancel();
-      finish();
-    };
-    utterance.lang = "ko-KR";
-    utterance.rate = 0.94;
-    utterance.pitch = 0.96;
-    utterance.voice =
-      voices.find((voice) => voice.lang.toLowerCase().startsWith("ko")) ||
-      voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ||
-      null;
-    utterance.onend = finish;
-    utterance.onerror = finish;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  });
 }
 
 function switchToTextMode(message) {
@@ -931,6 +940,7 @@ function fallbackInterviewerQuestion(latestAnswer) {
 async function requestInterviewer(latestAnswer = "") {
   setBusy(true);
   clearSilenceTimer();
+  warmTts();
   const profile = getProfile();
   elements.personaSummary.textContent = `${profile.company} · ${profile.role} · ${profile.personaLabel}`;
 

@@ -1,7 +1,4 @@
 {
   "name": "ai-presentation-coach-prototype",
-  "private": true,
-  "dependencies": {
-    "@google/genai": "latest"
-  }
+  "private": true
 }
