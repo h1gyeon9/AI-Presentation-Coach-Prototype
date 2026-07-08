@@ -939,6 +939,7 @@ async function startLiveInterview() {
   try {
     const tokenData = await requestLiveToken();
     state.liveModel = tokenData.model || "gemini-3.1-flash-live-preview";
+    console.info("[AI Live] token issued", { model: state.liveModel });
     const socket = new WebSocket(
       `${LIVE_WS_ENDPOINT}?access_token=${encodeURIComponent(tokenData.token)}`,
     );
@@ -946,33 +947,40 @@ async function startLiveInterview() {
 
     socket.onopen = () => {
       setLiveStatus("AI 음성 세션을 설정하고 있습니다.", "live");
-      sendLiveMessage({
+      const setupMessage = {
         setup: {
           model: normalizeLiveModelName(state.liveModel),
-          generationConfig: {
-            responseModalities: ["AUDIO"],
-            temperature: 0.7,
-          },
+          responseModalities: ["AUDIO"],
           systemInstruction: {
             parts: [{ text: buildLiveSystemInstruction() }],
           },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
         },
-      });
+      };
+      console.info("[AI Live] sending setup", { model: setupMessage.setup.model });
+      sendLiveMessage(setupMessage);
     };
 
     socket.onmessage = (event) => {
       handleLiveMessage(event.data);
     };
 
-    socket.onerror = () => {
+    socket.onerror = (event) => {
+      console.error("[AI Live] websocket error", event);
       setLiveStatus("실시간 음성 연결 오류가 발생했습니다.", "error");
       setConnection("AI Live 실패", "red");
     };
 
     socket.onclose = (event) => {
       const wasManual = state.liveManualClose;
+      console.warn("[AI Live] websocket closed", {
+        code: event.code,
+        reason: event.reason,
+        wasClean: event.wasClean,
+        wasManual,
+        model: state.liveModel,
+      });
       cleanupLiveConnection();
       if (!wasManual && state.started) {
         setLiveStatus("실시간 음성 연결이 끊겼습니다. 재시도할 수 있습니다.", "error");

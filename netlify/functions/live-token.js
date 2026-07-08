@@ -26,6 +26,7 @@ exports.handler = async (event) => {
   try {
     const payload = JSON.parse(event.body || "{}");
     const model = normalizeModelName(process.env.GEMINI_LIVE_MODEL || DEFAULT_LIVE_MODEL);
+    console.info("[AI Live Token] issuing token", { model });
     const token = await createLiveToken(model);
 
     return json(200, {
@@ -34,6 +35,11 @@ exports.handler = async (event) => {
       expiresInMinutes: 30,
     });
   } catch (error) {
+    console.error("[AI Live Token] failed", {
+      code: error.code,
+      status: error.status || error.statusCode,
+      message: sanitizeError(error.message || ""),
+    });
     const statusCode = Number(error.status || error.statusCode) || 500;
     return json(statusCode, {
       code: error.code || "LIVE_TOKEN_ERROR",
