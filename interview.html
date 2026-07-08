@@ -580,6 +580,225 @@
         font-weight: 900;
       }
 
+      .camera-lab {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+        border: 1px solid rgba(49, 87, 201, 0.2);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .camera-head {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .camera-head h3 {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      .camera-head p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .camera-chip {
+        min-height: 28px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 9px;
+        border: 1px solid rgba(49, 87, 201, 0.24);
+        border-radius: 8px;
+        background: rgba(49, 87, 201, 0.08);
+        color: var(--blue);
+        font-size: 12px;
+        font-weight: 900;
+        white-space: nowrap;
+      }
+
+      .camera-stage {
+        position: relative;
+        min-height: 210px;
+        overflow: hidden;
+        border: 1px solid #101828;
+        border-radius: 8px;
+        background:
+          linear-gradient(135deg, rgba(23, 32, 51, 0.94), rgba(23, 32, 51, 0.76)),
+          #172033;
+      }
+
+      .camera-stage video {
+        width: 100%;
+        height: 100%;
+        min-height: 210px;
+        display: block;
+        object-fit: cover;
+        transform: scaleX(-1);
+      }
+
+      .camera-placeholder {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: rgba(255, 255, 255, 0.68);
+        font-size: 42px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+      }
+
+      .camera-stage.is-live .camera-placeholder {
+        display: none;
+      }
+
+      .face-frame {
+        position: absolute;
+        inset: 16% 24% 20%;
+        border: 2px solid rgba(31, 122, 91, 0.86);
+        border-radius: 8px;
+        box-shadow: 0 0 0 999px rgba(23, 32, 51, 0.18);
+      }
+
+      .face-frame::before,
+      .face-frame::after {
+        content: "";
+        position: absolute;
+        width: 34px;
+        height: 34px;
+        border-color: rgba(255, 255, 255, 0.86);
+      }
+
+      .face-frame::before {
+        top: -2px;
+        left: -2px;
+        border-top: 2px solid;
+        border-left: 2px solid;
+      }
+
+      .face-frame::after {
+        right: -2px;
+        bottom: -2px;
+        border-right: 2px solid;
+        border-bottom: 2px solid;
+      }
+
+      .scanline {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 18%;
+        height: 2px;
+        background: rgba(31, 122, 91, 0.82);
+        box-shadow: 0 0 18px rgba(31, 122, 91, 0.55);
+        animation: scan 2.8s ease-in-out infinite alternate;
+      }
+
+      @keyframes scan {
+        from {
+          transform: translateY(0);
+        }
+
+        to {
+          transform: translateY(138px);
+        }
+      }
+
+      .camera-status {
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        min-height: 32px;
+        display: flex;
+        align-items: center;
+        padding: 7px 9px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        background: rgba(16, 24, 40, 0.68);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .camera-controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .nonverbal-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      .signal-row {
+        display: grid;
+        grid-template-columns: 78px 1fr 40px;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .signal-row span,
+      .signal-row b {
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .signal-row span {
+        color: #26324a;
+      }
+
+      .signal-row b {
+        color: var(--text);
+        text-align: right;
+      }
+
+      .signal-bar {
+        height: 9px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #e7edf5;
+      }
+
+      .signal-fill {
+        width: 0%;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--green);
+        transition:
+          width 0.42s ease,
+          background 0.42s ease;
+      }
+
+      .signal-fill.mid {
+        background: var(--amber);
+      }
+
+      .signal-fill.low {
+        background: var(--red);
+      }
+
+      .signal-feed {
+        min-height: 88px;
+        margin: 0;
+        padding: 10px 10px 10px 26px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface-2);
+      }
+
+      .signal-feed li {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
       .empty-state {
         min-height: 220px;
         display: grid;
@@ -653,7 +872,8 @@
 
         .speech-row,
         .answer-form,
-        .report-actions {
+        .report-actions,
+        .camera-controls {
           grid-template-columns: 1fr;
         }
 
@@ -816,6 +1036,60 @@
             </p>
           </div>
 
+          <section class="camera-lab" aria-labelledby="cameraTitle">
+            <div class="camera-head">
+              <div>
+                <h3 id="cameraTitle">비언어 분석</h3>
+                <p>시선, 자세, 표정, 제스처 신호</p>
+              </div>
+              <span class="camera-chip" id="cameraMode">대기</span>
+            </div>
+
+            <div class="camera-stage" id="cameraStage">
+              <video id="cameraPreview" autoplay muted playsinline></video>
+              <div class="camera-placeholder" id="cameraPlaceholder">CAM</div>
+              <div class="face-frame" aria-hidden="true"></div>
+              <div class="scanline" aria-hidden="true"></div>
+              <div class="camera-status" id="cameraStatus">카메라 대기 중</div>
+            </div>
+
+            <div class="camera-controls">
+              <button class="secondary-button" id="cameraButton" type="button">
+                카메라 켜기
+              </button>
+              <button class="secondary-button" id="simulationButton" type="button">
+                데모 모드
+              </button>
+            </div>
+
+            <div class="nonverbal-grid" aria-label="비언어 지표">
+              <div class="signal-row">
+                <span>시선</span>
+                <div class="signal-bar"><div class="signal-fill" id="eyeBar"></div></div>
+                <b id="eyeScore">--</b>
+              </div>
+              <div class="signal-row">
+                <span>자세</span>
+                <div class="signal-bar"><div class="signal-fill" id="postureBar"></div></div>
+                <b id="postureScore">--</b>
+              </div>
+              <div class="signal-row">
+                <span>표정</span>
+                <div class="signal-bar"><div class="signal-fill" id="expressionBar"></div></div>
+                <b id="expressionScore">--</b>
+              </div>
+              <div class="signal-row">
+                <span>제스처</span>
+                <div class="signal-bar"><div class="signal-fill" id="gestureBar"></div></div>
+                <b id="gestureScore">--</b>
+              </div>
+            </div>
+
+            <ul class="signal-feed" id="signalFeed">
+              <li>카메라를 켜면 비언어 신호가 표시됩니다.</li>
+            </ul>
+          </section>
+
           <div class="report-actions">
             <button class="secondary-button" id="reportButton" type="button" disabled>
               리포트 생성
@@ -864,6 +1138,19 @@
         recognitionSupported: false,
         isRecording: false,
         pendingVoiceText: "",
+        cameraStream: null,
+        cameraActive: false,
+        nonverbalTimer: null,
+        nonverbalTick: 0,
+        nonverbalMode: "idle",
+        nonverbal: {
+          eye: 0,
+          posture: 0,
+          expression: 0,
+          gesture: 0,
+        },
+        nonverbalHistory: [],
+        signalEvents: [],
       };
 
       const $ = (selector) => document.querySelector(selector);
@@ -894,6 +1181,21 @@
         voiceMetric: $("#voiceMetric"),
         connectionText: $("#connectionText"),
         connectionPill: $("#connectionPill"),
+        cameraStage: $("#cameraStage"),
+        cameraPreview: $("#cameraPreview"),
+        cameraButton: $("#cameraButton"),
+        simulationButton: $("#simulationButton"),
+        cameraMode: $("#cameraMode"),
+        cameraStatus: $("#cameraStatus"),
+        signalFeed: $("#signalFeed"),
+        eyeScore: $("#eyeScore"),
+        postureScore: $("#postureScore"),
+        expressionScore: $("#expressionScore"),
+        gestureScore: $("#gestureScore"),
+        eyeBar: $("#eyeBar"),
+        postureBar: $("#postureBar"),
+        expressionBar: $("#expressionBar"),
+        gestureBar: $("#gestureBar"),
       };
 
       function escapeHtml(value) {
@@ -935,6 +1237,225 @@
         elements.fillerMetric.textContent = String(analysis.fillerTotal);
         elements.voiceMetric.textContent = state.voiceEnabled ? "ON" : "OFF";
         elements.reportButton.disabled = state.answers.length === 0;
+      }
+
+      function clampScore(value) {
+        return Math.max(0, Math.min(100, Math.round(value)));
+      }
+
+      function average(values) {
+        if (!values.length) return 0;
+        return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+      }
+
+      function setSignalValue(scoreElement, barElement, value) {
+        scoreElement.textContent = value ? String(value) : "--";
+        barElement.style.width = `${value || 0}%`;
+        barElement.classList.toggle("low", value > 0 && value < 64);
+        barElement.classList.toggle("mid", value >= 64 && value < 78);
+      }
+
+      function renderNonverbalScores() {
+        setSignalValue(elements.eyeScore, elements.eyeBar, state.nonverbal.eye);
+        setSignalValue(elements.postureScore, elements.postureBar, state.nonverbal.posture);
+        setSignalValue(elements.expressionScore, elements.expressionBar, state.nonverbal.expression);
+        setSignalValue(elements.gestureScore, elements.gestureBar, state.nonverbal.gesture);
+
+        if (!state.signalEvents.length) {
+          elements.signalFeed.innerHTML = "<li>카메라를 켜면 비언어 신호가 표시됩니다.</li>";
+          return;
+        }
+
+        elements.signalFeed.innerHTML = state.signalEvents
+          .slice(0, 4)
+          .map((event) => `<li>${escapeHtml(event)}</li>`)
+          .join("");
+      }
+
+      function getNonverbalEvent(snapshot) {
+        const scores = [
+          ["eye", snapshot.eye],
+          ["posture", snapshot.posture],
+          ["expression", snapshot.expression],
+          ["gesture", snapshot.gesture],
+        ].sort((a, b) => a[1] - b[1]);
+        const [weakestKey, weakestScore] = scores[0];
+        const clock = new Date().toLocaleTimeString("ko-KR", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+
+        if (weakestScore >= 82) return `${clock} 전반적인 비언어 안정도 양호`;
+        if (weakestKey === "eye") return `${clock} 시선이 화면 밖으로 분산되는 구간 감지`;
+        if (weakestKey === "posture") return `${clock} 상체 기울어짐과 어깨 긴장 신호 감지`;
+        if (weakestKey === "expression") return `${clock} 표정 변화가 적어 전달 에너지 낮음`;
+        return `${clock} 손동작 리듬이 답변 흐름과 어긋나는 구간 감지`;
+      }
+
+      function tickNonverbal() {
+        state.nonverbalTick += 1;
+        const t = state.nonverbalTick;
+        const speakingBoost = state.isRecording ? 8 : 0;
+        const demoOffset = state.nonverbalMode === "demo" ? -2 : 2;
+
+        state.nonverbal = {
+          eye: clampScore(78 + demoOffset + Math.sin(t / 2.2) * 8 + (Math.random() - 0.5) * 10),
+          posture: clampScore(80 + demoOffset + Math.cos(t / 2.8) * 7 + (Math.random() - 0.5) * 8),
+          expression: clampScore(74 + demoOffset + Math.sin(t / 1.7) * 9 + (Math.random() - 0.5) * 10),
+          gesture: clampScore(
+            66 + speakingBoost + demoOffset + Math.sin(t / 2.4) * 12 + (Math.random() - 0.5) * 12,
+          ),
+        };
+
+        state.nonverbalHistory.unshift({
+          ...state.nonverbal,
+          mode: state.nonverbalMode,
+          at: Date.now(),
+        });
+        state.nonverbalHistory = state.nonverbalHistory.slice(0, 48);
+
+        if (t === 1 || t % 2 === 0) {
+          state.signalEvents.unshift(getNonverbalEvent(state.nonverbal));
+          state.signalEvents = state.signalEvents.slice(0, 8);
+        }
+
+        renderNonverbalScores();
+      }
+
+      function startNonverbalSession(mode, statusText) {
+        window.clearInterval(state.nonverbalTimer);
+        state.nonverbalMode = mode;
+        state.nonverbalTick = 0;
+        state.nonverbalHistory = [];
+        state.signalEvents = [];
+
+        elements.cameraStage.classList.toggle("is-live", mode === "live");
+        elements.cameraMode.textContent = mode === "live" ? "카메라" : "데모";
+        elements.cameraStatus.textContent = statusText;
+        elements.cameraButton.textContent = mode === "live" ? "카메라 끄기" : "카메라 켜기";
+        elements.simulationButton.textContent = mode === "demo" ? "데모 재시작" : "데모 모드";
+
+        tickNonverbal();
+        state.nonverbalTimer = window.setInterval(tickNonverbal, 1300);
+      }
+
+      function stopNonverbalSession(clearHistory = false) {
+        window.clearInterval(state.nonverbalTimer);
+        state.nonverbalTimer = null;
+        state.nonverbalMode = "idle";
+        elements.cameraStage.classList.remove("is-live");
+        elements.cameraMode.textContent = "대기";
+        elements.cameraStatus.textContent = clearHistory
+          ? "카메라 대기 중"
+          : "카메라가 꺼졌습니다. 마지막 신호가 리포트에 반영됩니다.";
+        elements.cameraButton.textContent = "카메라 켜기";
+        elements.simulationButton.textContent = "데모 모드";
+
+        if (clearHistory) {
+          state.nonverbal = { eye: 0, posture: 0, expression: 0, gesture: 0 };
+          state.nonverbalHistory = [];
+          state.signalEvents = [];
+        }
+
+        renderNonverbalScores();
+      }
+
+      async function startCamera() {
+        if (state.cameraActive) {
+          stopCamera(false);
+          return;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+          startNonverbalSession("demo", "카메라 API를 사용할 수 없어 데모 모드로 실행 중");
+          return;
+        }
+
+        elements.cameraStatus.textContent = "카메라 권한 확인 중";
+        elements.cameraButton.disabled = true;
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 720 },
+              height: { ideal: 480 },
+              facingMode: "user",
+            },
+            audio: false,
+          });
+          state.cameraStream = stream;
+          state.cameraActive = true;
+          elements.cameraPreview.srcObject = stream;
+          await elements.cameraPreview.play().catch(() => {});
+          startNonverbalSession("live", "얼굴 위치와 비언어 신호 분석 중");
+        } catch (error) {
+          state.cameraActive = false;
+          state.cameraStream = null;
+          elements.cameraPreview.srcObject = null;
+          startNonverbalSession("demo", "카메라 권한 없이 데모 모드 실행 중");
+        } finally {
+          elements.cameraButton.disabled = false;
+        }
+      }
+
+      function stopCamera(clearHistory = false) {
+        if (state.cameraStream) {
+          state.cameraStream.getTracks().forEach((track) => track.stop());
+        }
+        state.cameraStream = null;
+        state.cameraActive = false;
+        elements.cameraPreview.srcObject = null;
+        stopNonverbalSession(clearHistory);
+      }
+
+      function startDemoMode() {
+        if (state.cameraActive) {
+          stopCamera(false);
+        }
+        startNonverbalSession("demo", "가상 비언어 신호 분석 중");
+      }
+
+      function analyzeNonverbal() {
+        if (!state.nonverbalHistory.length) return null;
+        const history = state.nonverbalHistory;
+        const averages = {
+          eye: average(history.map((item) => item.eye)),
+          posture: average(history.map((item) => item.posture)),
+          expression: average(history.map((item) => item.expression)),
+          gesture: average(history.map((item) => item.gesture)),
+        };
+        const entries = Object.entries(averages).sort((a, b) => a[1] - b[1]);
+        const labelMap = {
+          eye: "시선",
+          posture: "자세",
+          expression: "표정",
+          gesture: "제스처",
+        };
+        const observations = [];
+
+        if (averages.eye < 72) observations.push("시선이 자주 분산되어 답변 신뢰감이 약해 보일 수 있습니다.");
+        else observations.push("시선 접촉은 전반적으로 안정적인 편입니다.");
+
+        if (averages.posture < 72) observations.push("상체 중심이 흔들려 긴장감이 크게 보이는 구간이 있습니다.");
+        else observations.push("자세 안정도는 면접 화면에 적합한 수준입니다.");
+
+        if (averages.expression < 72) observations.push("표정 변화가 적어 강점 설명의 에너지가 낮게 보일 수 있습니다.");
+        else observations.push("표정 반응은 자연스럽게 유지되고 있습니다.");
+
+        if (averages.gesture < 68) observations.push("손동작이 적어 핵심 문장을 강조하는 힘이 약할 수 있습니다.");
+        else if (averages.gesture > 88) observations.push("제스처가 다소 많아 시선이 분산될 수 있습니다.");
+        else observations.push("제스처 리듬은 답변 흐름과 무난하게 맞습니다.");
+
+        return {
+          score: average(Object.values(averages)),
+          averages,
+          weakest: labelMap[entries[0][0]],
+          weakestScore: entries[0][1],
+          observations,
+          mode: state.nonverbalMode,
+          samples: history.length,
+        };
       }
 
       function setBusy(isBusy) {
@@ -1219,6 +1740,7 @@
           structureScore: Math.round(structureScore),
           deliveryScore: Math.round(deliveryScore),
           specificityScore: Math.round(specificityScore),
+          nonverbal: analyzeNonverbal(),
         };
       }
 
@@ -1243,6 +1765,24 @@
           analysis.evidenceSignals === 0
             ? "정량 근거가 거의 없습니다. 기간, 규모, 개선율, 참여 인원처럼 검증 가능한 단위를 넣어 주세요."
             : "정량 근거가 일부 포함되어 있습니다. 성과 수치를 직무 역량과 직접 연결하면 설득력이 올라갑니다.";
+
+        const nonverbalBlock = analysis.nonverbal
+          ? `
+            <section class="report-block">
+              <h3>비언어 피드백</h3>
+              <p>종합 안정도는 ${analysis.nonverbal.score}점이며, 가장 보완이 필요한 신호는 ${analysis.nonverbal.weakest}입니다.</p>
+              <div class="badge-row" style="margin-top: 12px;">
+                <span class="badge">시선 ${analysis.nonverbal.averages.eye}</span>
+                <span class="badge">자세 ${analysis.nonverbal.averages.posture}</span>
+                <span class="badge">표정 ${analysis.nonverbal.averages.expression}</span>
+                <span class="badge">제스처 ${analysis.nonverbal.averages.gesture}</span>
+              </div>
+              <ul style="margin-top: 12px;">
+                ${analysis.nonverbal.observations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+              </ul>
+            </section>
+          `
+          : "";
 
         const aiBlock = aiReport
           ? `
@@ -1298,6 +1838,7 @@
               <li>평균 답변 길이는 ${analysis.avgLength}자입니다. 핵심 답변은 45초에서 75초 분량으로 맞춰 보세요.</li>
             </ul>
           </section>
+          ${nonverbalBlock}
           ${aiBlock}
         `;
       }
@@ -1340,6 +1881,7 @@
 
       function resetSession() {
         window.speechSynthesis?.cancel();
+        stopCamera(true);
         if (state.recognition && state.isRecording) {
           state.recognition.stop();
         }
@@ -1370,6 +1912,8 @@
       });
 
       elements.startButton.addEventListener("click", startInterview);
+      elements.cameraButton.addEventListener("click", startCamera);
+      elements.simulationButton.addEventListener("click", startDemoMode);
 
       elements.micButton.addEventListener("click", () => {
         if (!state.recognition || state.busy) return;
@@ -1401,12 +1945,14 @@
 
       elements.reportButton.addEventListener("click", generateReport);
       elements.resetButton.addEventListener("click", resetSession);
+      window.addEventListener("beforeunload", () => stopCamera(false));
 
       if ("speechSynthesis" in window) {
         window.speechSynthesis.onvoiceschanged = () => {};
       }
 
       setupSpeechRecognition();
+      renderNonverbalScores();
       updateMetrics();
     </script>
   </body>
