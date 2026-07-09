@@ -468,6 +468,7 @@ function clearNonverbalVideoState() {
   state.nonverbalVideoBlob = null;
   state.nonverbalVideoMimeType = "";
   state.nonverbalVideoIssue = "";
+  state.nonverbalVideoDiscard = false;
 }
 
 function resolveNonverbalVideoStop() {
