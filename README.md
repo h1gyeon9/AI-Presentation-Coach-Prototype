@@ -27,3 +27,38 @@
 ├─ netlify.toml
 └─ package.json
 ```
+
+## UI 연결용 AI API
+
+`assets/js/ai-client.js`가 `window.PitaAI`를 제공합니다. 새 UI에서는 아래 함수를
+호출하면 됩니다.
+
+```js
+await PitaAI.presentation.generateDraft({
+  materials: [{ name, mimeType, text }], // 또는 { name, mimeType, data: base64 }
+  context,
+});
+
+await PitaAI.presentation.generateQuestions({ script, context, count: 6 });
+
+await PitaAI.presentation.analyze({
+  mode: "script", // script | audio | video
+  script,
+  mediaBase64,
+  mediaMimeType,
+  context,
+  measuredMetrics,
+  previousSessions,
+});
+
+await PitaAI.interview.generateQuestions({ profile, interviewType });
+await PitaAI.interview.generateReport({ profile, answers, messages, localAnalysis });
+```
+
+발표 요청은 `/.netlify/functions/presentation-ai`의 `draft`, `questions`, `report`
+작업으로 처리됩니다. `report`는 새 UI용 `report` JSON과 기존 화면용 `feedback`
+마크다운을 함께 반환합니다.
+
+실시간 시선·자세·표정·제스처 막대는 프로토타입용 시뮬레이션입니다. 주변 환경 및
+정자세 캘리브레이션은 카메라·마이크 확인 화면만 있으며 AI 분석에는 연결하지
+않습니다.

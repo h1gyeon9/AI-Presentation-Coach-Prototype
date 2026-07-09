@@ -211,22 +211,23 @@ document.getElementById("startButton").addEventListener("click", () => {
   showInterviewScreen("interview-practice");
 });
 
+function setInterviewReportPersona() {
+  document.getElementById("interview-report-persona").textContent =
+    interviewPersonaSelect.selectedOptions[0]?.textContent || "가상 면접관";
+}
+
 interviewReportButton.addEventListener("click", () => {
   if (interviewReportButton.disabled) return;
-  setTimeout(() => {
-    if (interviewReportButton.textContent.includes("생성 중")) {
-      document.getElementById("interview-report-persona").textContent =
-        interviewPersonaSelect.selectedOptions[0]?.textContent || "가상 면접관";
-      showInterviewScreen("interview-loading");
-    }
-  }, 0);
-});
+  setInterviewReportPersona();
+  showInterviewScreen("interview-loading");
+}, { capture: true });
 
 const interviewReportObserver = new MutationObserver(() => {
   const loading = document
     .querySelector('[data-screen="interview-loading"]')
     .classList.contains("is-active");
-  if (loading && !interviewReportButton.textContent.includes("생성 중")) {
+  if (loading && state.lastReport && !state.reportGenerating) {
+    setInterviewReportPersona();
     showInterviewScreen("interview-report");
   }
 });

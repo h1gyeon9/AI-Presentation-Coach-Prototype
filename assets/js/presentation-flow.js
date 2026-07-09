@@ -3,6 +3,7 @@ const presentationScreens = [...document.querySelectorAll("[data-screen]")];
 const presentationType = document.getElementById("presentation-type-select");
 const presentationPurpose = document.getElementById("audience-select");
 const presentationSetupNext = document.getElementById("presentation-setup-next");
+const presentationPersonaNext = document.getElementById("presentation-persona-next");
 const presentationModeSelect = document.getElementById("mode-select");
 const presentationBranchButtons = [...document.querySelectorAll("[data-presentation-branch]")];
 const presentationBranchNext = document.getElementById("presentation-branch-next");
@@ -13,12 +14,19 @@ const presentationStatusBadge = document.getElementById("status-badge");
 const presentationReportContent = document.getElementById("report-content");
 const presentationDocumentInput = document.getElementById("presentation-document-input");
 const presentationDocumentState = document.getElementById("presentation-document-state");
+const presentationFileList = document.getElementById("presentation-file-list");
+const presentationUploadBox = document.querySelector('[data-screen="upload"] .upload-box');
 const presentationScriptText = document.getElementById("script-text");
+const presentationTypeButtons = [...document.querySelectorAll("[data-type-value]")];
+const presentationPersonaButtons = [...document.querySelectorAll("[data-persona-value]")];
+const PRESENTATION_AI_INLINE_FILE_BYTES = 3 * 1024 * 1024;
+const PRESENTATION_AI_TOTAL_BASE64_CHARS = 5_000_000;
 
-let presentationBranch = "script";
+let presentationBranch = null;
 let presentationCheckStream = null;
 let presentationCalibrationStream = null;
 let presentationCalibrationInterval = null;
+let presentationAiMaterials = [];
 
 function showPresentationScreen(name) {
   presentationScreens.forEach((screen) => {
@@ -49,12 +57,45 @@ document.querySelectorAll("[data-go]").forEach((button) => {
 });
 
 function updatePresentationSetup() {
-  presentationSetupNext.disabled = !(presentationType.value && presentationPurpose.value);
+  presentationSetupNext.disabled = !presentationType.value;
+  presentationPersonaNext.disabled = !presentationPurpose.value;
   updateGenerateReportAvailability();
 }
 
 presentationType.addEventListener("change", updatePresentationSetup);
 presentationPurpose.addEventListener("change", updatePresentationSetup);
+
+function selectDesignOption(buttons, selectedButton, select, value) {
+  select.value = value;
+  buttons.forEach((button) => {
+    const selected = button === selectedButton;
+    button.classList.toggle("is-selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+presentationTypeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    selectDesignOption(
+      presentationTypeButtons,
+      button,
+      presentationType,
+      button.dataset.typeValue,
+    );
+  });
+});
+
+presentationPersonaButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    selectDesignOption(
+      presentationPersonaButtons,
+      button,
+      presentationPurpose,
+      button.dataset.personaValue,
+    );
+  });
+});
 
 presentationBranchButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -64,10 +105,12 @@ presentationBranchButtons.forEach((button) => {
       item.classList.toggle("is-selected", selected);
       item.setAttribute("aria-pressed", String(selected));
     });
+    presentationBranchNext.disabled = false;
   });
 });
 
 presentationBranchNext.addEventListener("click", () => {
+  if (!presentationBranch) return;
   presentationModeSelect.value = presentationBranch === "practice" ? "record" : "script";
   presentationModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
   showPresentationScreen(presentationBranch === "practice" ? "environment" : "script");
@@ -78,51 +121,220 @@ document.getElementById("presentation-document-trigger").addEventListener("click
 });
 
 presentationDocumentInput.addEventListener("change", async () => {
-  const file = presentationDocumentInput.files?.[0];
-  if (!file) return;
+  const files = [...(presentationDocumentInput.files || [])];
+  if (!files.length) return;
 
-  presentationDocumentState.textContent = `${file.name} · 파일을 확인하고 있어요.`;
+  renderPresentationFiles(files);
+  presentationDocumentState.textContent = `${files.length}개 파일을 확인하고 있어요.`;
   presentationDocumentState.classList.add("is-ready");
 
   try {
-    const extension = file.name.split(".").pop()?.toLowerCase();
-    let text = "";
+    const prepared = [];
+    const skipped = [];
+    let inlineChars = 0;
 
-    if (["txt", "md"].includes(extension)) {
-      text = await file.text();
-    } else if (["pdf", "docx"].includes(extension) && file.size <= 4 * 1024 * 1024) {
-      const response = await fetch("/.netlify/functions/parse-document", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filename: file.name,
-          data: await fileToBase64ForPresentation(file),
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "문서 내용을 읽지 못했습니다.");
-      text = data.text || "";
+    for (const file of files) {
+      try {
+        const material = await preparePresentationAiMaterial(file);
+        if (material.data) {
+          if (inlineChars + material.data.length > PRESENTATION_AI_TOTAL_BASE64_CHARS) {
+            skipped.push(`${file.name}(전체 요청 크기 초과)`);
+            continue;
+          }
+          inlineChars += material.data.length;
+        }
+        prepared.push(material);
+      } catch (error) {
+        skipped.push(`${file.name}(${error.message})`);
+      }
     }
 
-    if (text.trim()) {
-      presentationScriptText.value = text.trim();
+    presentationAiMaterials = prepared;
+    window.presentationAiMaterials = presentationAiMaterials;
+    if (!prepared.length) {
+      throw new Error(skipped.join(", ") || "분석 가능한 자료가 없습니다.");
+    }
+
+    if (window.PitaAI) {
+      presentationDocumentState.textContent = "AI가 첨부 자료를 바탕으로 대본 초안을 작성하고 있어요.";
+      const result = await window.PitaAI.presentation.generateDraft({
+        materials: prepared,
+        existingScript: presentationScriptText.value.trim(),
+      });
+      presentationScriptText.value = result.draft.trim();
       presentationScriptText.dispatchEvent(new Event("input", { bubbles: true }));
-      presentationDocumentState.textContent = `${file.name} · 대본 초안을 불러왔어요.`;
+      const warningCount = (result.warnings || []).length + skipped.length;
+      presentationDocumentState.textContent =
+        `${files.length}개 첨부 · AI 대본 초안을 만들었어요.` +
+        (warningCount ? ` (${warningCount}개 확인 필요)` : "");
     } else {
-      presentationDocumentState.textContent = `${file.name} · 첨부 완료`;
+      const fallbackText = prepared
+        .map((material) => material.text || "")
+        .filter(Boolean)
+        .join("\n\n");
+      if (fallbackText) {
+        presentationScriptText.value = fallbackText;
+        presentationScriptText.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      presentationDocumentState.textContent = `${files.length}개 파일 · 첨부 완료`;
     }
   } catch (error) {
-    presentationDocumentState.textContent = `${file.name} · 첨부 완료 (대본은 직접 입력해주세요)`;
+    const fallbackText = presentationAiMaterials
+      .map((material) => material.text || "")
+      .filter(Boolean)
+      .join("\n\n");
+    if (fallbackText && !presentationScriptText.value.trim()) {
+      presentationScriptText.value = fallbackText;
+      presentationScriptText.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    presentationDocumentState.textContent =
+      `${files.length}개 파일 · AI 초안 생성 실패` +
+      (fallbackText ? " · 추출 텍스트를 불러왔어요." : ` (${error.message || "대본을 직접 입력해주세요"})`);
   }
 });
+
+async function preparePresentationAiMaterial(file) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "";
+  const mimeType = file.type || mimeTypeFromExtension(extension);
+
+  if (["txt", "md"].includes(extension) || mimeType.startsWith("text/")) {
+    return { name: file.name, mimeType: "text/plain", text: await file.text() };
+  }
+
+  if (
+    ["png", "jpg", "jpeg", "webp"].includes(extension) ||
+    mimeType.startsWith("image/")
+  ) {
+    if (file.size > PRESENTATION_AI_INLINE_FILE_BYTES) {
+      throw new Error("이미지는 3MB 이하만 AI 분석 가능");
+    }
+    return {
+      name: file.name,
+      mimeType: mimeType || "image/png",
+      data: await fileToBase64ForPresentation(file),
+    };
+  }
+
+  if (extension === "pdf" && file.size <= PRESENTATION_AI_INLINE_FILE_BYTES) {
+    return {
+      name: file.name,
+      mimeType: "application/pdf",
+      data: await fileToBase64ForPresentation(file),
+    };
+  }
+
+  if (["pdf", "docx", "pptx"].includes(extension) && file.size <= 4 * 1024 * 1024) {
+    const parsed = await parsePresentationDocument(file);
+    return {
+      name: file.name,
+      mimeType: "text/plain",
+      text: parsed.text || "",
+    };
+  }
+
+  throw new Error("지원 형식 또는 4MB 제한 확인 필요");
+}
+
+async function parsePresentationDocument(file) {
+  const response = await fetch("/.netlify/functions/parse-document", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filename: file.name,
+      data: await fileToBase64ForPresentation(file),
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "문서 내용을 읽지 못했습니다.");
+  return data;
+}
+
+function mimeTypeFromExtension(extension) {
+  const types = {
+    pdf: "application/pdf",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+  };
+  return types[extension] || "application/octet-stream";
+}
+
+function renderPresentationFiles(files) {
+  presentationFileList.hidden = files.length === 0;
+  presentationUploadBox.hidden = files.length > 0;
+  presentationFileList.innerHTML = files
+    .map((file, index) => {
+      const extension = file.name.split(".").pop()?.toLowerCase();
+      const isDocument = ["doc", "docx", "txt", "md"].includes(extension);
+      const label = index === 0 ? "발표 자료" : index === 1 ? "추가 자료" : "발표 대본";
+      const icon = isDocument ? "icon-article.svg" : "icon-link.svg";
+      return `
+        <section class="uploaded-file-group">
+          <h3>${label}</h3>
+          <div class="uploaded-file-row">
+            <span><img src="./assets/images/${icon}" alt="" />${escapePresentationHtml(file.name)}</span>
+            <button type="button" data-remove-file="${index}" aria-label="${escapePresentationHtml(file.name)} 삭제">
+              <img src="./assets/images/icon-cancel.svg" alt="" />
+            </button>
+          </div>
+        </section>
+      `;
+    })
+    .join("");
+
+  const addButton = document.createElement("button");
+  addButton.className = "upload-more";
+  addButton.type = "button";
+  addButton.textContent = "파일 다시 선택";
+  addButton.addEventListener("click", () => presentationDocumentInput.click());
+  presentationFileList.appendChild(addButton);
+
+  presentationFileList.querySelectorAll("[data-remove-file]").forEach((button) => {
+    button.addEventListener("click", () => removePresentationFile(Number(button.dataset.removeFile)));
+  });
+}
+
+function removePresentationFile(index) {
+  const transfer = new DataTransfer();
+  [...presentationDocumentInput.files].forEach((file, fileIndex) => {
+    if (fileIndex !== index) transfer.items.add(file);
+  });
+  presentationDocumentInput.files = transfer.files;
+  presentationAiMaterials = presentationAiMaterials.filter((_, materialIndex) => materialIndex !== index);
+  window.presentationAiMaterials = presentationAiMaterials;
+  const remainingFiles = [...transfer.files];
+  renderPresentationFiles(remainingFiles);
+  presentationDocumentState.textContent = remainingFiles.length
+    ? `${remainingFiles.length}개 파일 · 첨부 완료`
+    : "선택된 파일이 없습니다.";
+}
+
+function escapePresentationHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 function fileToBase64ForPresentation(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(",")[1]);
+    reader.onload = () => resolve(dataUrlToBase64ForPresentation(reader.result));
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+function dataUrlToBase64ForPresentation(value) {
+  const text = String(value || "");
+  const marker = "base64,";
+  const markerIndex = text.indexOf(marker);
+  if (markerIndex !== -1) return text.slice(markerIndex + marker.length);
+  const commaIndex = text.lastIndexOf(",");
+  return commaIndex !== -1 ? text.slice(commaIndex + 1) : text;
 }
 
 document.getElementById("presentation-mic-check").addEventListener("click", async () => {
@@ -193,22 +405,6 @@ function stopPresentationCalibration() {
   const video = document.getElementById("presentation-calibration-video");
   if (video) video.srcObject = null;
 }
-
-presentationGenerateButton.addEventListener("click", () => {
-  if (presentationGenerateButton.disabled) return;
-  if (
-    presentationModeSelect.value === "record" &&
-    document.getElementById("video-preview").hidden &&
-    document.getElementById("audio-preview").hidden
-  ) {
-    return;
-  }
-  setTimeout(() => {
-    if (presentationStatusBadge.classList.contains("busy")) {
-      showPresentationScreen("loading");
-    }
-  }, 0);
-});
 
 const presentationStatusObserver = new MutationObserver(() => {
   if (presentationStatusBadge.classList.contains("done")) {
