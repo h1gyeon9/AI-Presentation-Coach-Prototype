@@ -75,6 +75,7 @@ const state = {
   nonverbalVideoStopPromise: null,
   nonverbalVideoStopResolve: null,
   nonverbalVideoDiscard: false,
+  nonverbalVideoIssue: "",
   ttsAudio: null,
   ttsAudioUrl: "",
   ttsBusy: false,
@@ -447,6 +448,7 @@ function clearNonverbalVideoState() {
   state.nonverbalVideoBytes = 0;
   state.nonverbalVideoBlob = null;
   state.nonverbalVideoMimeType = "";
+  state.nonverbalVideoIssue = "";
 }
 
 function resolveNonverbalVideoStop() {
@@ -471,6 +473,8 @@ function completeNonverbalVideoCapture() {
     if (state.cameraActive && state.nonverbalMode === "live") {
       elements.cameraStatus.textContent = "Gemini 리포트용 영상 샘플 저장 완료";
     }
+  } else if (!state.nonverbalVideoIssue) {
+    state.nonverbalVideoIssue = "녹화 조각이 생성되지 않았습니다.";
   }
 
   state.nonverbalVideoDiscard = false;
@@ -565,15 +569,27 @@ async function prepareNonverbalVideoPayload() {
     } catch (error) {
       // 일부 브라우저는 stop 직전 requestData 호출을 허용하지 않는다.
     }
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
     await stopNonverbalVideoCapture();
   }
 
-  if (!state.nonverbalVideoBlob?.size) return null;
-  if (state.nonverbalVideoBlob.size > NONVERBAL_VIDEO_MAX_BYTES) return null;
+  if (!state.nonverbalVideoBlob?.size) {
+    if (!state.nonverbalVideoIssue) {
+      state.nonverbalVideoIssue = state.cameraActive
+        ? "카메라는 켜져 있었지만 브라우저가 영상 샘플을 저장하지 못했습니다."
+        : "카메라가 꺼져 있어 영상 샘플이 없습니다.";
+    }
+    return null;
+  }
+  if (state.nonverbalVideoBlob.size > NONVERBAL_VIDEO_MAX_BYTES) {
+    state.nonverbalVideoIssue = `영상 샘플이 너무 큽니다. (${Math.round(state.nonverbalVideoBlob.size / 1024)}KB)`;
+    return null;
+  }
 
   return {
     mediaBase64: await fileToBase64(state.nonverbalVideoBlob),
     mediaMimeType: state.nonverbalVideoBlob.type || state.nonverbalVideoMimeType || "video/webm",
+    size: state.nonverbalVideoBlob.size,
   };
 }
 
@@ -1438,6 +1454,14 @@ function localReportHtml(analysis, aiReport = null) {
       `,
     )
     .join("");
+  const nonverbalAnalysis = analyzeNonverbal();
+  const localNonverbalItems = nonverbalAnalysis?.observations?.length
+    ? nonverbalAnalysis.observations
+    : [];
+  const localNonverbalSummary = nonverbalAnalysis
+    ? `로컬 시뮬레이션 기준 종합 ${nonverbalAnalysis.score}점 · 가장 보완할 항목은 ${nonverbalAnalysis.weakest}입니다.`
+    : "카메라를 켜고 면접을 진행하면 로컬 비언어 신호 요약이 표시됩니다.";
+  const nonverbalVideoIssue = state.nonverbalVideoIssue || "영상 샘플이 요청에 첨부되지 않았습니다.";
   return `
     <div class="report-tabs" role="tablist" aria-label="리포트 분류">
       <button class="report-tab ${tabClass("language")}" type="button" data-report-tab="language" role="tab" aria-selected="${active === "language"}">언어 습관</button>
@@ -1542,7 +1566,12 @@ function localReportHtml(analysis, aiReport = null) {
           : `
             <section class="report-block">
               <h3>AI 비언어 피드백</h3>
-              <p>카메라 영상 샘플을 Gemini가 분석한 결과가 있을 때 이곳에 표시됩니다.</p>
+              <p>Gemini가 분석할 카메라 영상 샘플이 없어 AI 비언어 피드백은 생성되지 않았습니다. ${escapeHtml(nonverbalVideoIssue)}</p>
+            </section>
+            <section class="report-block">
+              <h3>로컬 비언어 신호 요약</h3>
+              <p>${escapeHtml(localNonverbalSummary)}</p>
+              <ul style="margin-top: 12px;">${list(localNonverbalItems, "아직 수집된 비언어 신호가 없습니다.")}</ul>
             </section>
           `
       }
@@ -1598,6 +1627,11 @@ async function generateReport() {
 
   try {
     const nonverbalMedia = await prepareNonverbalVideoPayload();
+    if (nonverbalMedia?.mediaBase64) {
+      elements.cameraStatus.textContent = `Gemini 리포트에 카메라 영상 샘플 첨부됨 · ${Math.round(nonverbalMedia.size / 1024)}KB`;
+    } else {
+      elements.cameraStatus.textContent = `Gemini 리포트용 영상 샘플 없음 · ${state.nonverbalVideoIssue || "로컬 신호 요약 사용"}`;
+    }
     const data = await callGemini("report", {
       profile: getProfile(),
       answers: state.answers,
