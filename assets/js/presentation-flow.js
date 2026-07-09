@@ -194,22 +194,6 @@ function stopPresentationCalibration() {
   if (video) video.srcObject = null;
 }
 
-presentationGenerateButton.addEventListener("click", () => {
-  if (presentationGenerateButton.disabled) return;
-  if (
-    presentationModeSelect.value === "record" &&
-    document.getElementById("video-preview").hidden &&
-    document.getElementById("audio-preview").hidden
-  ) {
-    return;
-  }
-  setTimeout(() => {
-    if (presentationStatusBadge.classList.contains("busy")) {
-      showPresentationScreen("loading");
-    }
-  }, 0);
-});
-
 const presentationStatusObserver = new MutationObserver(() => {
   if (presentationStatusBadge.classList.contains("done")) {
     const typeLabel = presentationType.selectedOptions[0]?.textContent || "발표";

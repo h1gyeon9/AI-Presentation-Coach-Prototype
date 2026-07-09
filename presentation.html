@@ -215,6 +215,10 @@
               <video id="video-preview" controls hidden></video>
               <audio id="audio-preview" controls hidden></audio>
               <div class="camera-placeholder-flow" id="cam-placeholder">CAM</div>
+              <div class="rec-timer-badge" id="rec-timer-badge" hidden>
+                <span class="rec-dot" aria-hidden="true"></span>
+                <span id="rec-timer-value">0:00</span>
+              </div>
             </div>
             <p class="calibration-copy" id="cam-caption">레코딩 시작 버튼을 눌러 시작하세요</p>
 
@@ -282,7 +286,7 @@
                 <p class="result-placeholder">영상 분석 결과가 표시됩니다.</p>
               </div>
             </section>
-            <p id="print-meta"></p>
+            <dl id="print-meta" class="report-meta-footer" hidden></dl>
           </div>
           <div class="report-actions-flow">
             <button class="primary" id="export-pdf-btn" type="button">PDF로 저장</button>

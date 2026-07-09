@@ -42,6 +42,8 @@ const camCaption = document.getElementById("cam-caption");
 const videoLive = document.getElementById("video-live");
 const videoPreview = document.getElementById("video-preview");
 const audioPreview = document.getElementById("audio-preview");
+const recTimerBadge = document.getElementById("rec-timer-badge");
+const recTimerValue = document.getElementById("rec-timer-value");
 
 const mediaFileInput = document.getElementById("media-file");
 const cameraToggleBtn = document.getElementById("camera-toggle-btn");
@@ -214,9 +216,12 @@ function estimateSpeakingSeconds(text) {
 function startTimer() {
   elapsedSeconds = 0;
   statTime.textContent = formatTime(elapsedSeconds);
+  recTimerValue.textContent = formatTime(elapsedSeconds);
+  recTimerBadge.hidden = false;
   timerInterval = setInterval(() => {
     elapsedSeconds += 1;
     statTime.textContent = formatTime(elapsedSeconds);
+    recTimerValue.textContent = formatTime(elapsedSeconds);
     if (elapsedSeconds >= MAX_RECORD_SECONDS && recorder && recorder.state === "recording") {
       pushLogEntry(`최대 레코딩 시간(${MAX_RECORD_SECONDS}초)에 도달해 자동으로 종료합니다.`);
       recorder.stop();
@@ -227,6 +232,7 @@ function startTimer() {
 function stopTimer() {
   clearInterval(timerInterval);
   timerInterval = null;
+  recTimerBadge.hidden = true;
 }
 
 function resetTimer() {
@@ -588,11 +594,25 @@ resetBtn.addEventListener("click", () => {
   pushLogEntry("초기화됨");
 });
 
+function setReportMeta(items) {
+  printMeta.innerHTML = "";
+  items.forEach(({ label, value }) => {
+    const group = document.createElement("div");
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    group.append(dt, dd);
+    printMeta.append(group);
+  });
+  printMeta.hidden = items.length === 0;
+}
+
 resetReportBtn.addEventListener("click", () => {
   setContent(reportContent, "리포트를 생성하면 이곳에 표시됩니다.", true);
   nonverbalReportSection.hidden = true;
   setContent(nonverbalReportContent, "영상 모드로 리포트를 생성하면 이곳에 표시됩니다.", true);
-  printMeta.textContent = "";
+  setReportMeta([]);
   if (statusBadge.classList.contains("done")) {
     setStatus(null, "Gemini 대기");
   }
@@ -622,6 +642,10 @@ generateReportBtn.addEventListener("click", async () => {
   setContent(coachFeedbackContent, "분석 중입니다...", true);
   setContent(reportContent, "분석 중입니다...", true);
   nonverbalReportSection.hidden = true;
+  // 로딩 화면 전환을 setTimeout(0) + busy 클래스 검사에 의존하면, 로컬처럼
+  // 요청이 즉시 실패하는 환경에서 상태가 이미 원복된 뒤 검사가 실행되는
+  // 레이스가 생겨 화면이 넘어가지 않는다. 여기서 동기적으로 바로 전환한다.
+  showPresentationScreen("loading");
 
   try {
     let mediaBase64 = null;
@@ -665,8 +689,15 @@ generateReportBtn.addEventListener("click", async () => {
     }
 
     const audienceLabel = audienceSelect.selectedOptions[0]?.textContent || "";
-    const generatedAt = new Date().toLocaleString("ko-KR");
-    printMeta.textContent = `AI Presentation Coach 리포트 · 모드: ${getModeLabel()} · 청중: ${audienceLabel} · 생성 시각: ${generatedAt}`;
+    const generatedAt = new Date().toLocaleString("ko-KR", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    setReportMeta([
+      { label: "모드", value: getModeLabel() },
+      { label: "청중", value: audienceLabel },
+      { label: "생성 시각", value: generatedAt },
+    ]);
 
     coachStatusLine.textContent = "분석이 완료됐습니다.";
     setStatus("done", "분석 완료");
