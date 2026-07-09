@@ -19,11 +19,14 @@ const presentationUploadBox = document.querySelector('[data-screen="upload"] .up
 const presentationScriptText = document.getElementById("script-text");
 const presentationTypeButtons = [...document.querySelectorAll("[data-type-value]")];
 const presentationPersonaButtons = [...document.querySelectorAll("[data-persona-value]")];
+const PRESENTATION_AI_INLINE_FILE_BYTES = 3 * 1024 * 1024;
+const PRESENTATION_AI_TOTAL_BASE64_CHARS = 5_000_000;
 
 let presentationBranch = null;
 let presentationCheckStream = null;
 let presentationCalibrationStream = null;
 let presentationCalibrationInterval = null;
+let presentationAiMaterials = [];
 
 function showPresentationScreen(name) {
   presentationScreens.forEach((screen) => {
@@ -119,44 +122,143 @@ document.getElementById("presentation-document-trigger").addEventListener("click
 
 presentationDocumentInput.addEventListener("change", async () => {
   const files = [...(presentationDocumentInput.files || [])];
-  const file = files[0];
-  if (!file) return;
+  if (!files.length) return;
 
   renderPresentationFiles(files);
   presentationDocumentState.textContent = `${files.length}개 파일을 확인하고 있어요.`;
   presentationDocumentState.classList.add("is-ready");
 
   try {
-    const extension = file.name.split(".").pop()?.toLowerCase();
-    let text = "";
+    const prepared = [];
+    const skipped = [];
+    let inlineChars = 0;
 
-    if (["txt", "md"].includes(extension)) {
-      text = await file.text();
-    } else if (["pdf", "docx"].includes(extension) && file.size <= 4 * 1024 * 1024) {
-      const response = await fetch("/.netlify/functions/parse-document", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filename: file.name,
-          data: await fileToBase64ForPresentation(file),
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "문서 내용을 읽지 못했습니다.");
-      text = data.text || "";
+    for (const file of files) {
+      try {
+        const material = await preparePresentationAiMaterial(file);
+        if (material.data) {
+          if (inlineChars + material.data.length > PRESENTATION_AI_TOTAL_BASE64_CHARS) {
+            skipped.push(`${file.name}(전체 요청 크기 초과)`);
+            continue;
+          }
+          inlineChars += material.data.length;
+        }
+        prepared.push(material);
+      } catch (error) {
+        skipped.push(`${file.name}(${error.message})`);
+      }
     }
 
-    if (text.trim()) {
-      presentationScriptText.value = text.trim();
+    presentationAiMaterials = prepared;
+    window.presentationAiMaterials = presentationAiMaterials;
+    if (!prepared.length) {
+      throw new Error(skipped.join(", ") || "분석 가능한 자료가 없습니다.");
+    }
+
+    if (window.PitaAI) {
+      presentationDocumentState.textContent = "AI가 첨부 자료를 바탕으로 대본 초안을 작성하고 있어요.";
+      const result = await window.PitaAI.presentation.generateDraft({
+        materials: prepared,
+        existingScript: presentationScriptText.value.trim(),
+      });
+      presentationScriptText.value = result.draft.trim();
       presentationScriptText.dispatchEvent(new Event("input", { bubbles: true }));
-      presentationDocumentState.textContent = `${files.length}개 첨부 · 대본 초안을 불러왔어요.`;
+      const warningCount = (result.warnings || []).length + skipped.length;
+      presentationDocumentState.textContent =
+        `${files.length}개 첨부 · AI 대본 초안을 만들었어요.` +
+        (warningCount ? ` (${warningCount}개 확인 필요)` : "");
     } else {
+      const fallbackText = prepared
+        .map((material) => material.text || "")
+        .filter(Boolean)
+        .join("\n\n");
+      if (fallbackText) {
+        presentationScriptText.value = fallbackText;
+        presentationScriptText.dispatchEvent(new Event("input", { bubbles: true }));
+      }
       presentationDocumentState.textContent = `${files.length}개 파일 · 첨부 완료`;
     }
   } catch (error) {
-    presentationDocumentState.textContent = `${files.length}개 파일 · 첨부 완료 (대본은 직접 입력해주세요)`;
+    const fallbackText = presentationAiMaterials
+      .map((material) => material.text || "")
+      .filter(Boolean)
+      .join("\n\n");
+    if (fallbackText && !presentationScriptText.value.trim()) {
+      presentationScriptText.value = fallbackText;
+      presentationScriptText.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    presentationDocumentState.textContent =
+      `${files.length}개 파일 · AI 초안 생성 실패` +
+      (fallbackText ? " · 추출 텍스트를 불러왔어요." : ` (${error.message || "대본을 직접 입력해주세요"})`);
   }
 });
+
+async function preparePresentationAiMaterial(file) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "";
+  const mimeType = file.type || mimeTypeFromExtension(extension);
+
+  if (["txt", "md"].includes(extension) || mimeType.startsWith("text/")) {
+    return { name: file.name, mimeType: "text/plain", text: await file.text() };
+  }
+
+  if (
+    ["png", "jpg", "jpeg", "webp"].includes(extension) ||
+    mimeType.startsWith("image/")
+  ) {
+    if (file.size > PRESENTATION_AI_INLINE_FILE_BYTES) {
+      throw new Error("이미지는 3MB 이하만 AI 분석 가능");
+    }
+    return {
+      name: file.name,
+      mimeType: mimeType || "image/png",
+      data: await fileToBase64ForPresentation(file),
+    };
+  }
+
+  if (extension === "pdf" && file.size <= PRESENTATION_AI_INLINE_FILE_BYTES) {
+    return {
+      name: file.name,
+      mimeType: "application/pdf",
+      data: await fileToBase64ForPresentation(file),
+    };
+  }
+
+  if (["pdf", "docx", "pptx"].includes(extension) && file.size <= 4 * 1024 * 1024) {
+    const parsed = await parsePresentationDocument(file);
+    return {
+      name: file.name,
+      mimeType: "text/plain",
+      text: parsed.text || "",
+    };
+  }
+
+  throw new Error("지원 형식 또는 4MB 제한 확인 필요");
+}
+
+async function parsePresentationDocument(file) {
+  const response = await fetch("/.netlify/functions/parse-document", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filename: file.name,
+      data: await fileToBase64ForPresentation(file),
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "문서 내용을 읽지 못했습니다.");
+  return data;
+}
+
+function mimeTypeFromExtension(extension) {
+  const types = {
+    pdf: "application/pdf",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+  };
+  return types[extension] || "application/octet-stream";
+}
 
 function renderPresentationFiles(files) {
   presentationFileList.hidden = files.length === 0;
@@ -199,6 +301,8 @@ function removePresentationFile(index) {
     if (fileIndex !== index) transfer.items.add(file);
   });
   presentationDocumentInput.files = transfer.files;
+  presentationAiMaterials = presentationAiMaterials.filter((_, materialIndex) => materialIndex !== index);
+  window.presentationAiMaterials = presentationAiMaterials;
   const remainingFiles = [...transfer.files];
   renderPresentationFiles(remainingFiles);
   presentationDocumentState.textContent = remainingFiles.length

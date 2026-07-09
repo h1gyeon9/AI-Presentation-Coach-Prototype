@@ -1427,6 +1427,17 @@ function localReportHtml(analysis, aiReport = null) {
         `<span class="badge">${escapeHtml(item.keyword)} ${item.matched ? "언급" : "미언급"}</span>`,
     )
     .join("");
+  const followUpItems = (aiReport?.followUpQuestions || [])
+    .map(
+      (item) => `
+        <li>
+          <b>${escapeHtml(item.question || "예상 꼬리질문")}</b>
+          <p>질문 의도 · ${escapeHtml(item.intent || "답변을 더 구체적으로 검증")}</p>
+          <p>답변 포인트 · ${(item.suggestedAnswerPoints || []).map(escapeHtml).join(", ") || "관련 경험과 근거를 준비하세요."}</p>
+        </li>
+      `,
+    )
+    .join("");
   return `
     <div class="report-tabs" role="tablist" aria-label="리포트 분류">
       <button class="report-tab ${tabClass("language")}" type="button" data-report-tab="language" role="tab" aria-selected="${active === "language"}">언어 습관</button>
@@ -1488,6 +1499,16 @@ function localReportHtml(analysis, aiReport = null) {
         <h3>직무 적합성 및 인재상 매핑</h3>
         <div class="badge-row">${mappingBadges || '<span class="badge">매핑 키워드 없음</span>'}</div>
       </section>
+      ${
+        followUpItems
+          ? `
+            <section class="report-block">
+              <h3>예상 꼬리질문과 답변 포인트</h3>
+              <ul>${followUpItems}</ul>
+            </section>
+          `
+          : ""
+      }
       <section class="report-block">
         <h3>보완 포인트</h3>
         <ul>${list(aiReport?.contentFeedback || aiReport?.improvements, "상황, 행동, 결과, 배운 점 순서로 답변을 더 명확히 구조화해 보세요.")}</ul>

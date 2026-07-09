@@ -655,26 +655,26 @@ generateReportBtn.addEventListener("click", async () => {
       mediaMimeType = mediaStore.mimeType;
     }
 
-    const response = await fetch("/.netlify/functions/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode, script, audience, mediaBase64, mediaMimeType }),
-    });
+    const data = window.PitaAI
+      ? await window.PitaAI.presentation.analyze({
+          mode,
+          script,
+          mediaBase64,
+          mediaMimeType,
+          measuredMetrics: {
+            recordedDurationSeconds: mode === "script" ? 0 : elapsedSeconds,
+            scriptCharacterCount: script.length,
+          },
+        })
+      : await requestLegacyPresentationAnalysis({
+          mode,
+          script,
+          audience,
+          mediaBase64,
+          mediaMimeType,
+        });
 
-    const rawBody = await response.text();
-    let data;
-    try {
-      data = JSON.parse(rawBody);
-    } catch {
-      throw new Error(
-        rawBody
-          ? `서버 응답을 해석하지 못했습니다: ${rawBody.slice(0, 200)}`
-          : "서버로부터 빈 응답을 받았습니다. 파일 용량을 줄이거나 잠시 후 다시 시도해주세요."
-      );
-    }
-    if (!response.ok) {
-      throw new Error(data.error || "분석 요청이 실패했습니다.");
-    }
+    window.lastPresentationAiReport = data.report || null;
 
     const { content, nonverbal } = splitReportSections(data.feedback);
 
@@ -719,6 +719,31 @@ function blobToBase64(blob) {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+async function requestLegacyPresentationAnalysis(payload) {
+  const response = await fetch("/.netlify/functions/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const rawBody = await response.text();
+  let data;
+
+  try {
+    data = JSON.parse(rawBody);
+  } catch {
+    throw new Error(
+      rawBody
+        ? `서버 응답을 해석하지 못했습니다: ${rawBody.slice(0, 200)}`
+        : "서버로부터 빈 응답을 받았습니다. 파일 용량을 줄이거나 잠시 후 다시 시도해주세요.",
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(data.error || "분석 요청이 실패했습니다.");
+  }
+  return data;
 }
 
 updateModeUI();
