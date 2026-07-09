@@ -4,193 +4,295 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Presentation Coach</title>
-    <link rel="stylesheet" href="./presentation.css" />
+    <link rel="stylesheet" href="./assets/css/app.css" />
   </head>
-  <body>
-    <div class="dashboard-shell">
-      <header class="dashboard-header">
-        <a class="back-link" href="./index.html">&lt; 코칭 선택</a>
-        <div class="header-title">
-          <h1>AI Presentation Coach</h1>
-          <p>대본 · 음성 · 영상 발표 연습 프로토타입</p>
-        </div>
-        <span class="status-badge" id="status-badge">Gemini 대기</span>
-      </header>
+  <body class="flow-app presentation-app">
+    <main class="flow-shell">
+      <a class="flow-logo" href="./index.html">LOGO</a>
+      <span class="flow-status" id="status-badge">Gemini 대기</span>
 
-      <div class="dashboard-grid">
-        <aside class="panel settings-panel">
-          <h2>발표 설정</h2>
-          <p class="panel-desc">
-            입력값은 프로토타입 기준이며, Gemini 분석 요청에 함께 전달됩니다.
-          </p>
+      <div class="sr-only" aria-hidden="true">
+        <p id="coach-status-line">발표 코칭 준비 중</p>
+        <span id="stat-mode">스크립트</span>
+        <span id="stat-time">-</span>
+        <span id="stat-time-label">예상 발표 시간</span>
+        <select id="mode-select" tabindex="-1">
+          <option value="script">스크립트</option>
+          <option value="record">음성 및 영상</option>
+        </select>
+      </div>
 
-          <label for="audience-select">청중 유형 <span class="required-tag">필수</span></label>
-          <select id="audience-select">
-            <option value="" disabled selected>선택하세요</option>
-            <option value="general">일반 청중</option>
-            <option value="professor">교수/평가자</option>
-            <option value="team">팀원/스터디</option>
-            <option value="interviewer">면접관</option>
-            <option value="investor">IR 투자자</option>
-          </select>
-
-          <label for="mode-select">연습 방식</label>
-          <select id="mode-select">
-            <option value="script">스크립트</option>
-            <option value="record">음성 및 영상</option>
-          </select>
-
-        </aside>
-
-        <section class="panel practice-panel">
-          <div class="practice-topbar">
-            <div class="coach-id">
-              <span class="coach-avatar" aria-hidden="true">AI</span>
-              <div>
-                <strong>AI 발표 코치</strong>
-                <p id="coach-status-line">청중 유형을 선택하고 리포트 생성을 눌러 피드백을 받아보세요.</p>
-              </div>
-            </div>
-            <div class="stat-chips">
-              <div class="stat-chip">
-                <span id="stat-mode">스크립트</span>
-                <small>모드</small>
-              </div>
-              <div class="stat-chip">
-                <span id="stat-time">-</span>
-                <small id="stat-time-label">예상 발표 시간</small>
-              </div>
-            </div>
+      <section class="flow-screen is-active" data-screen="upload" aria-labelledby="presentation-upload-title">
+        <h1 class="flow-heading" id="presentation-upload-title">
+          프레젠테이션을 위해<br />준비한 자료를 공유해주세요
+        </h1>
+        <div class="flow-screen-body">
+          <h2 class="flow-section-title">발표 자료</h2>
+          <div class="upload-box">
+            <span class="upload-icon" aria-hidden="true">＋</span>
+            <strong>만들어둔 발표 자료(ppt) 및 발표 대본을 첨부해주세요</strong>
+            <p>pdf, ppt, doc (최대 50MB)</p>
+            <button class="upload-trigger" id="presentation-document-trigger" type="button">파일 첨부</button>
+            <p class="upload-state" id="presentation-document-state">선택된 파일이 없습니다.</p>
+            <p>자세하게 작성된 내용일수록 정확도가 올라가요 UP</p>
+            <input
+              id="presentation-document-input"
+              type="file"
+              accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.md"
+              hidden
+            />
           </div>
+        </div>
+        <div class="flow-nav single">
+          <button class="flow-button flow-button-primary" type="button" data-go="setup">다음</button>
+        </div>
+      </section>
 
-          <div class="script-panel" id="script-panel" hidden>
-            <h3>대본 입력</h3>
+      <section class="flow-screen" data-screen="setup" aria-labelledby="presentation-setup-title">
+        <h1 class="flow-heading" id="presentation-setup-title">발표 유형/목적을 선택해주세요</h1>
+        <div class="flow-screen-body">
+          <label class="flow-field" for="presentation-type-select">
+            <span>발표 유형</span>
+            <select class="flow-select" id="presentation-type-select">
+              <option value="">준비하고자 하는 발표의 유형을 선택해주세요</option>
+              <option value="major-class">전공 수업 발표</option>
+              <option value="activity">대외활동 발표</option>
+              <option value="liberal-class">교양 수업 발표</option>
+              <option value="business">업무·성과 발표</option>
+              <option value="other">기타 발표</option>
+            </select>
+          </label>
+
+          <label class="flow-field" for="audience-select">
+            <span>발표 목적</span>
+            <select class="flow-select" id="audience-select">
+              <option value="">발표 목적을 선택해주세요</option>
+              <option value="professor">수업 평가</option>
+              <option value="general">정보 전달</option>
+              <option value="team">성과 공유</option>
+              <option value="interviewer">설득 및 제안</option>
+              <option value="investor">IR 투자 유치</option>
+            </select>
+          </label>
+        </div>
+        <div class="flow-nav">
+          <button class="flow-button" type="button" data-go="upload">이전</button>
+          <button class="flow-button flow-button-primary" id="presentation-setup-next" type="button" data-go="ready" disabled>
+            다음
+          </button>
+        </div>
+      </section>
+
+      <section class="flow-screen" data-screen="ready" aria-labelledby="presentation-ready-title">
+        <h1 class="flow-heading" id="presentation-ready-title">
+          준비가 완료되었어요!<br />뭐부터 할까요?
+        </h1>
+        <div class="choice-stack" role="radiogroup" aria-label="발표 코칭 방식">
+          <button class="choice-button is-selected" type="button" data-presentation-branch="script" aria-pressed="true">
+            발표 대본(스크립트) 수정
+          </button>
+          <button class="choice-button" type="button" data-presentation-branch="practice" aria-pressed="false">
+            실제 발표 연습
+          </button>
+        </div>
+        <div class="flow-nav">
+          <button class="flow-button" type="button" data-go="setup">이전</button>
+          <button class="flow-button flow-button-primary" id="presentation-branch-next" type="button">다음</button>
+        </div>
+      </section>
+
+      <section class="flow-screen" data-screen="script" aria-labelledby="presentation-script-title">
+        <h1 class="flow-heading" id="presentation-script-title">발표 대본(스크립트) 수정</h1>
+        <div class="flow-screen-body">
+          <section id="script-panel">
+            <h2 class="flow-section-title">발표 대본 공유</h2>
+            <p class="calibration-copy">
+              미리 작성한 발표 대본을 공유해주세요. 작성한 내용이 없다면, 업로드한 발표 자료를
+              기반으로 대본 초안을 작성해드려요!
+            </p>
             <div id="script-slot-main">
               <textarea
+                class="flow-textarea"
                 id="script-text"
                 rows="14"
                 placeholder="발표할 대본을 입력하세요."
               ></textarea>
             </div>
-            <div class="confirm-row">
-              <button type="button" id="confirm-script-btn" class="ghost-btn-lg">대본 확정</button>
-              <span class="confirm-status" id="script-confirm-status" hidden></span>
+            <div class="practice-controls">
+              <button id="confirm-script-btn" type="button">대본 확정</button>
+              <span class="upload-state" id="script-confirm-status" hidden></span>
             </div>
-          </div>
-
-          <div class="analysis-block" id="analysis-block">
-            <div class="analysis-header">
-              <div>
-                <h3>비언어 분석</h3>
-                <p>시선, 자세, 표정, 제스처 신호</p>
-              </div>
-              <span class="demo-badge">데모</span>
-            </div>
-
-            <div class="analysis-body">
-              <div class="cam-box" id="cam-box">
-                <video id="video-live" autoplay muted playsinline hidden></video>
-                <video id="video-preview" controls hidden></video>
-                <audio id="audio-preview" controls hidden></audio>
-                <span class="cam-placeholder" id="cam-placeholder">CAM</span>
-                <span class="cam-caption" id="cam-caption">연습을 시작하면 여기에 표시됩니다</span>
-              </div>
-
-              <div class="analysis-side">
-                <div class="cam-controls">
-                  <input type="file" id="media-file" hidden />
-                  <button type="button" id="camera-toggle-btn" class="ghost-btn-lg">
-                    카메라 켜기
-                  </button>
-                  <button type="button" id="record-btn" class="ghost-btn-lg">
-                    ● 레코딩 시작
-                  </button>
-                  <button type="button" id="upload-btn" class="ghost-btn-lg">
-                    파일 업로드
-                  </button>
-                  <button type="button" id="retake-btn" class="ghost-btn-lg" hidden>다시 찍기</button>
-                  <button type="button" id="reset-btn" class="ghost-btn-lg danger" hidden>초기화</button>
-                </div>
-
-                <div class="metric-bars" id="metric-bars" hidden>
-                  <div class="metric-row">
-                    <span>시선</span>
-                    <div class="bar"><div class="bar-fill" id="bar-eye"></div></div>
-                    <b id="score-eye">-</b>
-                  </div>
-                  <div class="metric-row">
-                    <span>자세</span>
-                    <div class="bar"><div class="bar-fill" id="bar-posture"></div></div>
-                    <b id="score-posture">-</b>
-                  </div>
-                  <div class="metric-row">
-                    <span>표정</span>
-                    <div class="bar"><div class="bar-fill" id="bar-expression"></div></div>
-                    <b id="score-expression">-</b>
-                  </div>
-                  <div class="metric-row">
-                    <span>제스처</span>
-                    <div class="bar"><div class="bar-fill" id="bar-gesture"></div></div>
-                    <b id="score-gesture">-</b>
-                  </div>
-                </div>
-
-                <ul class="event-log" id="event-log">
-                  <li>연습을 시작하면 여기에 감지 로그가 표시됩니다.</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div class="script-optional-panel" id="script-optional-panel" hidden>
-            <h3>대본 <span class="optional-tag">(선택)</span></h3>
-            <div id="script-slot-optional"></div>
-          </div>
-
-          <div class="coach-feedback">
-            <h3>AI 코치</h3>
-            <div id="coach-feedback-content">
-              <p class="result-placeholder">
-                오른쪽 "리포트 생성"을 누르면 분석 결과가 이곳과 리포트에 표시됩니다.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <aside class="panel report-panel">
-          <h2>발표 리포트</h2>
-          <p class="panel-desc">분석 결과를 기반으로 개선 포인트를 정리합니다.</p>
-          <div class="report-actions">
-            <button type="button" id="generate-report-btn" class="primary-btn" disabled>
-              리포트 생성
+          </section>
+          <div id="script-analysis-action" class="flow-nav single">
+            <button class="flow-button flow-button-primary" id="generate-report-btn" type="button" disabled>
+              분석 시작
             </button>
-            <button type="button" id="reset-report-btn" class="ghost-btn-lg">초기화</button>
           </div>
-          <button type="button" id="export-pdf-btn" class="ghost-btn-lg full-width">PDF로 저장</button>
-          <p class="report-hint" id="report-hint">왼쪽에서 청중 유형을 먼저 선택해주세요.</p>
+          <p class="upload-state" id="report-hint">발표 목적과 대본을 확인해주세요.</p>
+        </div>
+        <div class="flow-nav">
+          <button class="flow-button" type="button" data-go="ready">이전</button>
+          <span aria-hidden="true"></span>
+        </div>
+      </section>
 
-          <p class="print-meta" id="print-meta"></p>
+      <section class="flow-screen" data-screen="environment" aria-labelledby="presentation-environment-title">
+        <h1 class="flow-heading" id="presentation-environment-title">주변 환경을 분석해볼게요</h1>
+        <div class="flow-screen-body">
+          <div class="check-stage">
+            <video id="presentation-check-video" autoplay muted playsinline hidden></video>
+            <div class="check-placeholder" id="presentation-check-placeholder">환경 체크</div>
+          </div>
+          <div class="check-actions">
+            <button class="flow-button" id="presentation-mic-check" type="button">🎙 마이크 체크</button>
+            <button class="flow-button" id="presentation-speaker-check" type="button">🔊 스피커 체크</button>
+          </div>
+          <p class="calibration-copy" id="presentation-check-status">버튼을 눌러 장치를 확인해주세요.</p>
+        </div>
+        <div class="flow-nav">
+          <button class="flow-button" type="button" data-go="ready">이전</button>
+          <button class="flow-button flow-button-primary" type="button" data-go="calibration">다음</button>
+        </div>
+      </section>
 
-          <div class="report-section">
-            <h3>내용 리포트</h3>
-            <div class="report-content" id="report-content">
-              <p class="result-placeholder">
-                리포트를 생성하면 이곳에 표시됩니다.
-              </p>
+      <section class="flow-screen" data-screen="calibration" aria-labelledby="presentation-calibration-title">
+        <h1 class="flow-heading" id="presentation-calibration-title">
+          정면을 바라보고 화면 안에 얼굴이 들어오도록 맞춰주세요
+        </h1>
+        <div class="flow-screen-body">
+          <div class="check-stage">
+            <video id="presentation-calibration-video" autoplay muted playsinline></video>
+            <div class="check-placeholder" id="presentation-calibration-placeholder">CAM</div>
+          </div>
+          <p class="calibration-copy">정자세를 유지하고 아래 문장을 5초 안에 읽어주세요</p>
+          <p class="calibration-copy"><strong>“낮말은 새가 듣고, 밤말은 쥐가 듣는다.”</strong></p>
+          <p class="calibration-timer" id="presentation-calibration-timer">00:05</p>
+        </div>
+        <div class="flow-nav">
+          <button class="flow-button" type="button" data-go="environment">이전</button>
+          <button class="flow-button flow-button-primary" type="button" data-go="timing">다음</button>
+        </div>
+      </section>
+
+      <section class="flow-screen" data-screen="timing" aria-labelledby="presentation-timing-title">
+        <h1 class="flow-heading" id="presentation-timing-title">발표 연습을 준비해주세요</h1>
+        <div class="flow-screen-body">
+          <section id="script-optional-panel" hidden>
+            <h2 class="flow-section-title">발표 대본 공유</h2>
+            <div id="script-slot-optional"></div>
+          </section>
+
+          <h2 class="flow-section-title">발표 시간 설정</h2>
+          <div class="time-grid">
+            <label class="time-box">
+              <span>발표 시간(목표)</span>
+              <span class="time-inputs">
+                <input id="presentation-minutes" type="number" min="0" max="60" value="5" /> 분
+                <input id="presentation-seconds" type="number" min="0" max="59" value="0" /> 초
+              </span>
+            </label>
+            <label class="time-box">
+              <span>Q&amp;A 시간</span>
+              <span class="time-inputs">
+                <input id="qa-minutes" type="number" min="0" max="60" value="2" /> 분
+                <input id="qa-seconds" type="number" min="0" max="59" value="0" /> 초
+              </span>
+            </label>
+          </div>
+        </div>
+        <div class="flow-nav">
+          <button class="flow-button" type="button" data-go="calibration">이전</button>
+          <button class="flow-button flow-button-primary" type="button" data-go="practice">다음</button>
+        </div>
+      </section>
+
+      <section class="flow-screen" data-screen="practice" aria-labelledby="presentation-practice-title">
+        <h1 class="flow-heading" id="presentation-practice-title">실제 발표 연습을 해볼까요?</h1>
+        <div class="flow-screen-body practice-wide">
+          <section class="practice-panel-flow" id="analysis-block">
+            <div class="camera-stage-flow" id="cam-box">
+              <video id="video-live" autoplay muted playsinline hidden></video>
+              <video id="video-preview" controls hidden></video>
+              <audio id="audio-preview" controls hidden></audio>
+              <div class="camera-placeholder-flow" id="cam-placeholder">CAM</div>
             </div>
-          </div>
+            <p class="calibration-copy" id="cam-caption">레코딩 시작 버튼을 눌러 시작하세요</p>
 
-          <div class="report-section" id="nonverbal-report-section" hidden>
-            <h3>비언어 리포트</h3>
-            <div class="report-content" id="nonverbal-report-content">
-              <p class="result-placeholder">
-                영상 모드로 리포트를 생성하면 이곳에 표시됩니다.
-              </p>
+            <div class="practice-controls">
+              <input id="media-file" type="file" hidden />
+              <button id="camera-toggle-btn" type="button">카메라 켜기</button>
+              <button class="primary" id="record-btn" type="button">● 레코딩 시작</button>
+              <button id="upload-btn" type="button">파일 업로드</button>
+              <button id="retake-btn" type="button" hidden>다시 찍기</button>
+              <button id="reset-btn" type="button" hidden>초기화</button>
             </div>
+
+            <div class="metric-bars-flow" id="metric-bars" hidden>
+              <div class="metric-row-flow">
+                <span>시선 <b id="score-eye">-</b></span>
+                <div class="metric-track"><div class="metric-fill" id="bar-eye"></div></div>
+              </div>
+              <div class="metric-row-flow">
+                <span>자세 <b id="score-posture">-</b></span>
+                <div class="metric-track"><div class="metric-fill" id="bar-posture"></div></div>
+              </div>
+              <div class="metric-row-flow">
+                <span>표정 <b id="score-expression">-</b></span>
+                <div class="metric-track"><div class="metric-fill" id="bar-expression"></div></div>
+              </div>
+              <div class="metric-row-flow">
+                <span>제스처 <b id="score-gesture">-</b></span>
+                <div class="metric-track"><div class="metric-fill" id="bar-gesture"></div></div>
+              </div>
+            </div>
+
+            <ul class="event-log-flow" id="event-log">
+              <li data-placeholder>연습을 시작하면 감지 로그가 표시됩니다.</li>
+            </ul>
+
+            <div id="practice-analysis-action" class="flow-nav single"></div>
+          </section>
+        </div>
+        <div class="flow-nav">
+          <button class="flow-button" type="button" data-go="timing">이전</button>
+          <span aria-hidden="true"></span>
+        </div>
+      </section>
+
+      <section class="flow-screen" data-screen="loading" aria-labelledby="presentation-loading-title">
+        <h1 class="flow-heading" id="presentation-loading-title">AI가 내용을 분석하고 있어요</h1>
+        <div class="loading-card"><span class="loading-spinner" aria-hidden="true"></span></div>
+      </section>
+
+      <section class="flow-screen" data-screen="report" aria-labelledby="presentation-report-title">
+        <h1 class="flow-heading" id="presentation-report-title">분석을 완료했어요</h1>
+        <div class="flow-report">
+          <div class="report-meta-row">
+            <strong id="presentation-report-type">발표 리포트</strong>
+            <span id="presentation-report-purpose">선택한 발표 목적에 맞춘 피드백</span>
           </div>
-        </aside>
-      </div>
-    </div>
-    <script src="./presentation.js"></script>
+          <div class="report-card-flow">
+            <div id="coach-feedback-content" hidden></div>
+            <div id="report-content">
+              <p class="result-placeholder">리포트를 생성하면 이곳에 표시됩니다.</p>
+            </div>
+            <section id="nonverbal-report-section" hidden>
+              <h3>비언어 리포트</h3>
+              <div id="nonverbal-report-content">
+                <p class="result-placeholder">영상 분석 결과가 표시됩니다.</p>
+              </div>
+            </section>
+            <p id="print-meta"></p>
+          </div>
+          <div class="report-actions-flow">
+            <button class="primary" id="export-pdf-btn" type="button">PDF로 저장</button>
+            <button id="reset-report-btn" type="button">처음부터 다시</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="./assets/js/presentation.js"></script>
+    <script src="./assets/js/presentation-flow.js"></script>
   </body>
 </html>

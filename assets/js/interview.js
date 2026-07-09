@@ -1,4 +1,5 @@
 ﻿const API_ENDPOINT = "/.netlify/functions/gemini-interview";
+// Interview session, speech, camera, and report logic
 const DOCUMENT_ENDPOINT = "/.netlify/functions/parse-document";
 const TTS_ENDPOINT = "/.netlify/functions/typecast-tts";
 const TTS_CHUNK_MAX_CHARS = 1200;
@@ -187,6 +188,7 @@ function setReportActionsEnabled(enabled) {
 }
 
 function getProfile() {
+  const interviewType = document.getElementById("interview-type");
   return {
     company: elements.companyInput.value.trim() || "미입력 회사",
     role: elements.roleInput.value.trim() || "미입력 직무",
@@ -194,6 +196,7 @@ function getProfile() {
     persona: elements.personaInput.value,
     personaLabel: personaLabels[elements.personaInput.value],
     depth: Number(elements.depthInput.value),
+    interviewType: interviewType?.selectedOptions?.[0]?.textContent || "미입력 면접 유형",
     resumeName: state.resumeName,
     resumeText: state.resumeText.slice(0, 5000),
   };
@@ -226,6 +229,7 @@ function persistSession() {
       talent: elements.talentInput.value,
       persona: elements.personaInput.value,
       depth: elements.depthInput.value,
+      interviewType: document.getElementById("interview-type")?.value || "",
     },
     resumeName: state.resumeName,
     resumeText: state.resumeText,
@@ -274,6 +278,10 @@ function restoreSession() {
     elements.personaInput.value = saved.inputs?.persona || elements.personaInput.value;
     elements.depthInput.value = saved.inputs?.depth || elements.depthInput.value;
     elements.depthOutput.textContent = elements.depthInput.value;
+    const interviewType = document.getElementById("interview-type");
+    if (interviewType && saved.inputs?.interviewType) {
+      interviewType.value = saved.inputs.interviewType;
+    }
 
     state.resumeName = saved.resumeName || "";
     state.resumeText = saved.resumeText || "";

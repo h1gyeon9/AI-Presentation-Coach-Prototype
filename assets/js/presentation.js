@@ -1,3 +1,4 @@
+// Presentation recording and analysis
 const MAX_MEDIA_BYTES = 4 * 1024 * 1024; // base64 인코딩(+33%) 후에도 Netlify 함수/로컬 dev 서버의 요청 한도를 넘지 않도록 여유치를 둠
 const MIN_SCRIPT_LENGTH = 100;
 const MIN_RECORD_SECONDS = 10;

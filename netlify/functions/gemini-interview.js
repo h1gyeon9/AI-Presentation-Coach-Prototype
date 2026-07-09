@@ -24,8 +24,18 @@ exports.handler = async (event) => {
 
   try {
     const payload = JSON.parse(event.body || "{}");
-    const mode = payload.mode === "report" ? "report" : "turn";
-    const input = mode === "report" ? buildReportInput(payload) : buildTurnInput(payload);
+    const mode =
+      payload.mode === "report"
+        ? "report"
+        : payload.mode === "questions"
+          ? "questions"
+          : "turn";
+    const input =
+      mode === "report"
+        ? buildReportInput(payload)
+        : mode === "questions"
+          ? buildQuestionsInput(payload)
+          : buildTurnInput(payload);
     const response = await callGemini(mode, payload, input);
 
     const data = await response.json();
@@ -44,6 +54,13 @@ exports.handler = async (event) => {
     }
 
     const parsed = parseJsonBlock(text);
+    if (mode === "questions") {
+      return json(200, {
+        text,
+        questions: Array.isArray(parsed?.questions) ? parsed.questions : [],
+      });
+    }
+
     return json(200, {
       text,
       reply: parsed?.reply || parsed?.question || text,
@@ -95,7 +112,7 @@ async function callGemini(mode, payload, input) {
       system_instruction: buildSystemInstruction(mode, payload.profile, payload),
       input,
       generation_config: {
-        temperature: mode === "report" ? 0.35 : 0.72,
+        temperature: mode === "report" ? 0.35 : mode === "questions" ? 0.45 : 0.72,
       },
     }),
   });
@@ -131,6 +148,18 @@ function buildSystemInstruction(mode, profile = {}, payload = {}) {
       videoGuidance,
       "면접 합격을 보장하거나 과장하지 않습니다.",
       "반드시 JSON만 반환합니다.",
+    ].join(" ");
+  }
+
+  if (mode === "questions") {
+    return [
+      "당신은 한국어 면접 코치입니다.",
+      "지원자의 회사, 직무, 인재상, 이력서 내용을 바탕으로 실제 면접에서 나올 가능성이 높은 예상 질문을 만듭니다.",
+      "질문은 직무 경험, 직무 적합성, 위기 및 갈등 관리, 지원 동기, 성장 가능성을 고르게 다룹니다.",
+      "각 질문에는 면접관이 확인하려는 의도를 한 문장으로 붙입니다.",
+      "반드시 JSON만 반환합니다.",
+      "형식: {\"questions\":[{\"category\":\"직무 경험 (적합성)\",\"question\":\"질문\",\"intent\":\"질문 의도\"}]}",
+      "질문은 총 8개를 반환합니다.",
     ].join(" ");
   }
 
@@ -205,6 +234,23 @@ function buildReportInput(payload) {
     "",
     "다음 JSON 스키마로만 반환하세요.",
     "{\"summary\":\"2문장 종합평\",\"strengths\":[\"강점1\",\"강점2\"],\"languageHabits\":[\"언어 습관 피드백1\",\"언어 습관 피드백2\"],\"contentFeedback\":[\"내용 피드백1\",\"내용 피드백2\"],\"nonverbalFeedback\":[\"영상 기반 비언어 피드백 1: 관찰된 신호, 면접 인상 영향, 개선 행동을 포함\",\"영상 기반 비언어 피드백 2: 관찰된 신호, 면접 인상 영향, 개선 행동을 포함\",\"영상 기반 비언어 피드백 3: 관찰된 신호, 면접 인상 영향, 개선 행동을 포함\",\"영상 기반 비언어 피드백 4: 관찰된 신호, 면접 인상 영향, 개선 행동을 포함\",\"영상 기반 비언어 피드백 5: 관찰된 신호, 면접 인상 영향, 개선 행동을 포함\"],\"improvements\":[\"보완점1\",\"보완점2\",\"보완점3\"],\"practicePlan\":[\"연습1\",\"연습2\",\"연습3\"]}",
+  ].join("\n");
+}
+
+function buildQuestionsInput(payload) {
+  const profile = payload.profile || {};
+  return [
+    "[지원 정보]",
+    `회사: ${profile.company || "미입력"}`,
+    `직무: ${profile.role || "미입력"}`,
+    `인재상: ${profile.talent || "미입력"}`,
+    `면접 유형: ${payload.interviewType || profile.interviewType || "미입력"}`,
+    `면접관 성향: ${profile.personaLabel || "차분한 구조화 면접관"}`,
+    `자기소개서 파일: ${profile.resumeName || "없음"}`,
+    `자기소개서 발췌: ${profile.resumeText || "없음"}`,
+    "",
+    "지원자의 경험을 구체적으로 검증할 수 있는 예상 질문 8개를 만들어 주세요.",
+    "이력서 내용이 부족하면 직무와 인재상을 중심으로 질문을 구성하세요.",
   ].join("\n");
 }
 
