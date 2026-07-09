@@ -96,7 +96,7 @@ textarea:focus-visible {
   font-weight: 650;
   line-height: 1.55;
   text-align: center;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .mode-grid {
@@ -604,7 +604,7 @@ textarea:focus-visible {
   font-variant-numeric: tabular-nums;
   font-size: 15px;
   font-weight: 650;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 .rec-dot {
@@ -1003,7 +1003,7 @@ textarea:focus-visible {
   margin: 0;
   color: var(--flow-muted);
   font-size: 13px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 .report-meta-footer dd {
@@ -1101,7 +1101,7 @@ textarea:focus-visible {
   font-family: "ChangwonDangamAsac", Impact, "Arial Black", sans-serif;
   font-size: 48px;
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
 }
 
 .home-app .flow-logo {
@@ -1347,6 +1347,13 @@ textarea:focus-visible {
   overflow: hidden;
   font-size: 22px;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uploaded-file-row > span > span {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1614,6 +1621,619 @@ textarea:focus-visible {
 .presentation-app .flow-status {
   color: #dbe9eb;
   background: #2b2f31;
+}
+
+/* PITA dark UI completion: remaining presentation flow and interview flow */
+.interview-app {
+  color: var(--pita-text);
+  background: #fff;
+}
+
+.interview-app .flow-shell {
+  width: min(1224px, 100%);
+  min-height: max(100vh, 1024px);
+  padding-top: 1px;
+  background: var(--pita-bg);
+}
+
+.interview-app .flow-logo {
+  width: 808px;
+  margin: 60px auto 0;
+  color: var(--pita-cyan);
+  font-family: "ChangwonDangamAsac", Impact, "Arial Black", sans-serif;
+  font-size: 48px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.interview-app .flow-heading {
+  margin-top: 40px;
+  color: #fff;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 50px;
+}
+
+.interview-app .flow-screen-body,
+.interview-app .flow-nav {
+  width: 808px;
+}
+
+.interview-app .flow-screen-body {
+  margin-top: 60px;
+}
+
+.presentation-app .flow-screen-body.practice-wide,
+.interview-app .flow-screen-body.practice-wide {
+  width: 1040px;
+}
+
+.interview-app .flow-section-title {
+  margin-bottom: 24px;
+  color: #fff;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.interview-app .flow-nav {
+  grid-template-columns: 288px 496px;
+  gap: 24px;
+  margin-top: 48px;
+}
+
+.interview-app .flow-nav .flow-button {
+  min-height: 70px;
+  border: 0;
+  border-radius: 16px;
+  color: #434343;
+  background: #e0e0e0;
+  font-size: 28px;
+  text-decoration: none;
+}
+
+.interview-app .flow-nav .flow-button-primary {
+  color: #1c1c1c;
+  background: var(--pita-cyan);
+}
+
+.presentation-app .flow-input,
+.presentation-app .flow-select,
+.presentation-app .flow-textarea,
+.interview-app .flow-input,
+.interview-app .flow-select,
+.interview-app .flow-textarea {
+  border: 1px solid var(--pita-card-border);
+  border-radius: 12px;
+  color: #f5f5f5;
+  background: #2b3032;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.presentation-app .flow-input::placeholder,
+.presentation-app .flow-textarea::placeholder,
+.interview-app .flow-input::placeholder,
+.interview-app .flow-textarea::placeholder {
+  color: #98a2a5;
+}
+
+.presentation-app .flow-input:focus-visible,
+.presentation-app .flow-select:focus-visible,
+.presentation-app .flow-textarea:focus-visible,
+.interview-app .flow-input:focus-visible,
+.interview-app .flow-select:focus-visible,
+.interview-app .flow-textarea:focus-visible {
+  border-color: var(--pita-cyan-border);
+  outline: 3px solid rgba(0, 238, 238, 0.22);
+}
+
+.presentation-app .flow-field > span,
+.presentation-app .flow-field > label,
+.presentation-app .flow-field-title,
+.interview-app .flow-field > span,
+.interview-app .flow-field > label,
+.interview-app .flow-field-title {
+  color: #fff;
+}
+
+.presentation-app .calibration-copy,
+.presentation-app .question-group,
+.interview-app .calibration-copy,
+.interview-app .question-group {
+  color: #dbe9eb;
+}
+
+.presentation-app .upload-state,
+.interview-app .upload-state {
+  color: #c5d0d2;
+}
+
+.presentation-app .upload-state.is-ready,
+.interview-app .upload-state.is-ready {
+  color: var(--pita-cyan);
+}
+
+.interview-app .upload-box {
+  width: 808px;
+  min-height: 476px;
+  gap: 28px;
+  border: 1px solid #111;
+  border-radius: 16px;
+  padding: 52px 48px 34px;
+  color: #111;
+  background: #f9ffff;
+}
+
+.interview-app .upload-icon {
+  width: 96px;
+  height: 96px;
+  border: 2px solid rgba(0, 238, 238, 0.42);
+  border-radius: 16px;
+  color: #1c1c1c;
+  background: rgba(0, 238, 238, 0.16);
+}
+
+.interview-app .upload-box strong {
+  font-size: 26px;
+}
+
+.interview-app .upload-box p {
+  color: #333;
+}
+
+.interview-app .upload-trigger {
+  min-width: 174px;
+  min-height: 48px;
+  border-radius: 8px;
+  padding: 8px 16px;
+  color: #fff;
+  background: #737373;
+  font-size: 24px;
+  text-decoration: none;
+}
+
+.interview-app .upload-box .upload-state {
+  color: #626262;
+}
+
+.interview-app .upload-box .upload-state.is-ready {
+  color: #087a55;
+}
+
+.interview-uploaded-files {
+  display: grid;
+  gap: 26px;
+}
+
+.interview-app .interview-uploaded-files .uploaded-file-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  border-radius: 12px;
+}
+
+.interview-app .interview-uploaded-files .uploaded-file-row > span {
+  min-width: 0;
+}
+
+.interview-app .interview-uploaded-files .uploaded-file-row > span > span {
+  display: block;
+  min-width: 0;
+}
+
+.consent-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #dbe9eb;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.consent-row input {
+  width: 26px;
+  height: 26px;
+  accent-color: var(--pita-cyan);
+}
+
+.role-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.role-preset-grid button {
+  min-height: 72px;
+  border: 2px solid var(--pita-card-border);
+  border-radius: 12px;
+  color: var(--pita-muted);
+  background: var(--pita-card);
+  font-size: 22px;
+  font-weight: 650;
+}
+
+.role-preset-grid button.is-selected,
+.role-preset-grid button:hover {
+  border-color: var(--pita-cyan);
+  color: #fff;
+  background: var(--pita-selected-bg);
+}
+
+.interview-extra-panel {
+  margin-top: 28px;
+  border: 1px solid var(--pita-card-border);
+  border-radius: 12px;
+  padding: 0 22px;
+  color: #dbe9eb;
+  background: rgba(43, 48, 50, 0.62);
+}
+
+.interview-extra-panel summary {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  color: #dbe9eb;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.interview-extra-panel[open] {
+  padding-bottom: 22px;
+}
+
+.interview-extra-panel .flow-field {
+  margin-top: 20px;
+}
+
+.interview-app .choice-grid {
+  gap: 18px;
+}
+
+.interview-app .choice-card-small {
+  min-height: 148px;
+  border: 2px solid var(--pita-card-border);
+  border-radius: 12px;
+  color: var(--pita-muted);
+  background: var(--pita-card);
+  font-size: 24px;
+}
+
+.interview-app .choice-card-small.is-selected,
+.interview-app .choice-card-small:hover {
+  border-color: var(--pita-cyan);
+  color: #fff;
+  background: var(--pita-selected-bg);
+}
+
+.presentation-app .check-stage,
+.presentation-app .camera-stage-flow,
+.interview-app .check-stage,
+.interview-app .camera-stage-flow {
+  border: 1px solid var(--pita-card-border);
+  background: #16191a;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+}
+
+.presentation-app .check-placeholder,
+.presentation-app .camera-placeholder-flow,
+.interview-app .check-placeholder,
+.interview-app .camera-placeholder-flow {
+  color: #dbe9eb;
+  background:
+    linear-gradient(135deg, rgba(0, 238, 238, 0.12), rgba(255, 255, 255, 0) 46%),
+    #24292b;
+}
+
+.presentation-app .check-actions .flow-button,
+.interview-app .check-actions .flow-button,
+.presentation-app .practice-controls button,
+.presentation-app .report-actions-flow button,
+.interview-app .practice-controls button,
+.interview-app .report-actions-flow button,
+.interview-app .speech-row-flow button,
+.interview-app .answer-form-flow button {
+  min-height: 48px;
+  border: 1px solid var(--pita-card-border);
+  border-radius: 10px;
+  color: #dbe9eb;
+  background: #2b3032;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.presentation-app .check-actions .flow-button:hover,
+.interview-app .check-actions .flow-button:hover,
+.presentation-app .practice-controls button:hover,
+.presentation-app .report-actions-flow button:hover,
+.interview-app .practice-controls button:hover,
+.interview-app .report-actions-flow button:hover,
+.interview-app .speech-row-flow button:hover,
+.interview-app .answer-form-flow button:hover {
+  border-color: var(--pita-cyan-border);
+  color: #fff;
+}
+
+.presentation-app .practice-controls button.primary,
+.presentation-app .report-actions-flow button.primary,
+.interview-app .practice-controls button.primary,
+.interview-app .report-actions-flow button.primary,
+.interview-app .answer-form-flow button {
+  border-color: var(--pita-cyan);
+  color: #1c1c1c;
+  background: var(--pita-cyan);
+}
+
+.presentation-app .practice-controls button:disabled,
+.presentation-app .report-actions-flow button:disabled,
+.interview-app .practice-controls button:disabled,
+.interview-app .report-actions-flow button:disabled,
+.interview-app .speech-row-flow button:disabled,
+.interview-app .answer-form-flow button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.presentation-app .calibration-timer,
+.interview-app .calibration-timer {
+  width: max-content;
+  margin-right: auto;
+  margin-left: auto;
+  border: 1px solid rgba(0, 238, 238, 0.42);
+  border-radius: 999px;
+  padding: 8px 18px;
+  color: var(--pita-cyan);
+  background: rgba(0, 238, 238, 0.08);
+}
+
+.presentation-app .time-box,
+.interview-app .time-box {
+  border: 2px solid var(--pita-card-border);
+  border-radius: 12px;
+  color: #fff;
+  background: var(--pita-card);
+}
+
+.presentation-app .time-box > span,
+.interview-app .time-box > span {
+  color: #c5d0d2;
+}
+
+.presentation-app .time-inputs input,
+.interview-app .time-inputs input {
+  border-radius: 8px;
+  color: #fff;
+  background: #232729;
+}
+
+.presentation-app .practice-panel-flow,
+.interview-app .interviewer-panel-flow {
+  border: 1px solid var(--pita-card-border);
+  border-radius: 16px;
+  background: #282d2f;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+}
+
+.presentation-app .practice-panel-flow {
+  padding: 28px;
+}
+
+.presentation-app .practice-panel-flow .camera-stage-flow {
+  width: 100%;
+  height: 420px;
+}
+
+.presentation-app .metric-row-flow,
+.interview-app .metric-row-flow,
+.presentation-app .event-log-flow,
+.interview-app .event-log-flow,
+.interview-app .session-metrics-flow span,
+.interview-app .camera-chip-flow {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  color: #c5d0d2;
+  background: #202426;
+}
+
+.presentation-app .metric-row-flow > span,
+.interview-app .metric-row-flow > span,
+.interview-app .session-metrics-flow b {
+  color: #fff;
+}
+
+.presentation-app .metric-track,
+.interview-app .metric-track {
+  border-radius: 999px;
+  background: #3a4043;
+}
+
+.presentation-app .metric-fill,
+.interview-app .metric-fill {
+  border-radius: inherit;
+  background: var(--pita-cyan);
+}
+
+.presentation-app .event-log-flow,
+.interview-app .event-log-flow {
+  color: #98a2a5;
+}
+
+.presentation-app .report-meta-row,
+.interview-app .report-meta-row {
+  color: #fff;
+}
+
+.presentation-app .report-meta-row span,
+.interview-app .report-meta-row span {
+  color: #c5d0d2;
+}
+
+.presentation-app .report-card-flow,
+.interview-app .report-card-flow {
+  border: 1px solid var(--pita-card-border);
+  border-radius: 16px;
+  color: #eef7f8;
+  background: #2b3032;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.2);
+}
+
+.presentation-app .report-card-flow h2,
+.presentation-app .report-card-flow h3,
+.presentation-app .report-card-flow h4,
+.interview-app .report-card-flow h2,
+.interview-app .report-card-flow h3,
+.interview-app .report-card-flow h4 {
+  color: #fff;
+}
+
+.presentation-app .report-card-flow p,
+.presentation-app .report-card-flow li,
+.interview-app .report-card-flow p,
+.interview-app .report-card-flow li,
+.presentation-app .result-placeholder,
+.presentation-app .empty-state,
+.interview-app .result-placeholder,
+.interview-app .empty-state {
+  color: #c5d0d2;
+}
+
+.presentation-app .report-block,
+.interview-app .report-block,
+.presentation-app .score,
+.interview-app .score,
+.presentation-app .script-item,
+.interview-app .script-item {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  color: #eef7f8;
+  background: #202426;
+}
+
+.presentation-app .badge,
+.interview-app .badge {
+  border-color: rgba(0, 238, 238, 0.26);
+  border-radius: 999px;
+  color: #dbe9eb;
+  background: rgba(0, 238, 238, 0.08);
+}
+
+.presentation-app .report-meta-footer,
+.interview-app .report-meta-footer {
+  border-top-color: var(--pita-card-border);
+}
+
+.presentation-app .report-meta-footer dt,
+.interview-app .report-meta-footer dt {
+  color: #98a2a5;
+}
+
+.presentation-app .report-meta-footer dd,
+.interview-app .report-meta-footer dd {
+  color: #fff;
+}
+
+.interview-app .loading-card {
+  border: 1px solid var(--pita-card-border);
+  border-radius: 16px;
+  background: #282d2f;
+}
+
+.interview-app .loading-spinner {
+  border-color: rgba(255, 255, 255, 0.14);
+  border-top-color: var(--pita-cyan);
+}
+
+.interview-app .loading-figure {
+  width: 489px;
+  display: grid;
+  justify-items: center;
+  margin: 60px auto 0;
+}
+
+.interview-app .loading-figure > img:first-child {
+  width: 489px;
+  height: 530px;
+  object-fit: cover;
+}
+
+.interview-app .loading-dots {
+  width: 52px;
+  height: 12px;
+  margin-top: 32px;
+}
+
+.interview-app .flow-status {
+  border-color: var(--pita-card-border);
+  color: #dbe9eb;
+  background: #2b2f31;
+}
+
+.interview-app .status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--pita-cyan);
+  box-shadow: 0 0 0 4px rgba(0, 238, 238, 0.12);
+}
+
+.interview-app .interviewer-head-flow {
+  border-bottom-color: var(--pita-card-border);
+  background: #2f3537;
+}
+
+.interview-app .avatar-flow {
+  color: #1c1c1c;
+  background: var(--pita-cyan);
+}
+
+.interview-app .interviewer-head-flow strong {
+  color: #fff;
+}
+
+.interview-app .interviewer-head-flow p {
+  color: #98a2a5;
+}
+
+.interview-app .camera-lab-flow,
+.interview-app .chat-log-flow {
+  border-bottom-color: var(--pita-card-border);
+}
+
+.interview-app .chat-log-flow {
+  background: #252a2c;
+}
+
+.interview-app .message-label {
+  color: #98a2a5;
+}
+
+.interview-app .message-bubble {
+  border-color: var(--pita-card-border);
+  border-radius: 12px;
+  color: #eef7f8;
+  background: #202426;
+}
+
+.interview-app .message.user .message-bubble {
+  border-color: rgba(0, 238, 238, 0.48);
+  color: #f8ffff;
+  background: rgba(0, 238, 238, 0.12);
+}
+
+.interview-app .answer-zone-flow {
+  background: #282d2f;
+}
+
+.interview-app .speech-row-flow > div,
+.interview-app .answer-form-flow textarea {
+  border: 1px solid var(--pita-card-border);
+  border-radius: 10px;
+  color: #dbe9eb;
+  background: #202426;
+}
+
+.interview-app .answer-form-flow textarea::placeholder {
+  color: #98a2a5;
 }
 
 @media (max-width: 1100px) {
@@ -1971,5 +2591,314 @@ textarea:focus-visible {
   .sprite-icon {
     width: 64px;
     height: 64px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .interview-app .flow-shell {
+    width: 100%;
+    min-height: 100vh;
+  }
+
+  .interview-app .flow-screen-body,
+  .interview-app .flow-nav,
+  .interview-app .flow-logo {
+    width: min(808px, calc(100% - 40px));
+  }
+
+  .presentation-app .flow-screen-body.practice-wide,
+  .interview-app .flow-screen-body.practice-wide {
+    width: min(1040px, calc(100% - 40px)) !important;
+  }
+
+  .presentation-app .flow-report,
+  .interview-app .flow-report {
+    width: min(920px, calc(100% - 40px));
+  }
+
+  .interview-app .flow-nav {
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  }
+
+  .interview-app .upload-box {
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .interview-app .flow-shell {
+    min-height: 100dvh;
+    padding-bottom: 32px;
+  }
+
+  .interview-app .flow-logo {
+    width: calc(100% - 36px);
+    margin-top: 24px;
+    font-size: 34px;
+  }
+
+  .interview-app .flow-screen {
+    min-height: 0;
+  }
+
+  .interview-app .flow-heading {
+    margin-top: 24px;
+    padding: 0 18px;
+    font-size: 24px;
+    line-height: 1.45;
+  }
+
+  .interview-app .flow-screen-body,
+  .interview-app .flow-nav,
+  .presentation-app .flow-report,
+  .interview-app .flow-report {
+    width: calc(100% - 32px) !important;
+  }
+
+  .presentation-app .flow-screen-body.practice-wide,
+  .interview-app .flow-screen-body.practice-wide {
+    width: calc(100% - 32px) !important;
+  }
+
+  .interview-app .flow-screen-body {
+    margin-top: 34px;
+  }
+
+  .interview-app .flow-section-title {
+    margin-bottom: 18px;
+    font-size: 21px;
+  }
+
+  .interview-app .flow-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 32px;
+  }
+
+  .interview-app .flow-nav.single {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .interview-app .flow-nav.single .flow-button {
+    width: 100%;
+  }
+
+  .interview-app .flow-nav .flow-button {
+    min-height: 56px;
+    border-radius: 12px;
+    padding: 0 12px;
+    font-size: 18px;
+  }
+
+  .interview-app .upload-box {
+    min-height: 0;
+    gap: 18px;
+    border-radius: 12px;
+    padding: 26px 18px 22px;
+  }
+
+  .interview-app .upload-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 12px;
+  }
+
+  .interview-app .upload-box strong {
+    font-size: 18px;
+    line-height: 1.55;
+  }
+
+  .interview-app .upload-box p {
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  .interview-app .upload-trigger {
+    min-width: 140px;
+    min-height: 44px;
+    font-size: 18px;
+  }
+
+  .interview-uploaded-files {
+    gap: 18px;
+  }
+
+  .consent-row {
+    gap: 10px;
+    font-size: 15px;
+  }
+
+  .consent-row input {
+    width: 22px;
+    height: 22px;
+  }
+
+  .role-preset-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .role-preset-grid button {
+    min-height: 58px;
+    font-size: 17px;
+  }
+
+  .interview-extra-panel {
+    margin-top: 18px;
+    padding: 0 16px;
+  }
+
+  .interview-extra-panel summary {
+    min-height: 52px;
+    font-size: 15px;
+  }
+
+  .presentation-app .flow-input,
+  .presentation-app .flow-select,
+  .interview-app .flow-input,
+  .interview-app .flow-select {
+    height: 58px;
+    padding: 0 16px;
+    font-size: 16px;
+  }
+
+  .presentation-app .flow-textarea,
+  .interview-app .flow-textarea {
+    min-height: 220px;
+    padding: 18px;
+    font-size: 16px;
+  }
+
+  .presentation-app .time-grid,
+  .interview-app .choice-grid,
+  .interview-app .time-grid,
+  .presentation-app .metric-bars-flow,
+  .interview-app .metric-bars-flow {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .interview-app .choice-card-small {
+    min-height: 92px;
+    padding: 16px;
+    font-size: 18px;
+  }
+
+  .presentation-app .check-stage,
+  .presentation-app .camera-stage-flow,
+  .interview-app .check-stage,
+  .interview-app .camera-stage-flow {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .presentation-app .check-actions,
+  .interview-app .check-actions {
+    width: 100%;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .presentation-app .practice-controls,
+  .presentation-app .report-actions-flow,
+  .interview-app .practice-controls,
+  .interview-app .report-actions-flow {
+    gap: 10px;
+  }
+
+  .presentation-app .practice-controls button,
+  .presentation-app .report-actions-flow button,
+  .interview-app .practice-controls button,
+  .interview-app .report-actions-flow button {
+    flex: 1 1 140px;
+  }
+
+  .presentation-app .report-card-flow,
+  .interview-app .report-card-flow {
+    min-height: 0;
+    padding: 26px 20px;
+  }
+
+  .interview-app .interviewer-head-flow {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .interview-app .session-metrics-flow {
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+  }
+
+  .interview-app .session-metrics-flow span {
+    flex: 1 1 92px;
+  }
+
+  .interview-app .camera-lab-flow,
+  .interview-app .answer-zone-flow {
+    padding: 18px;
+  }
+
+  .interview-app .chat-log-flow {
+    max-height: none;
+    padding: 18px;
+  }
+
+  .interview-app .loading-figure {
+    width: min(320px, calc(100% - 40px));
+    margin-top: 34px;
+  }
+
+  .interview-app .loading-figure > img:first-child {
+    width: 100%;
+    height: auto;
+  }
+
+  .interview-app .loading-dots {
+    width: 44px;
+    height: auto;
+    margin-top: 20px;
+  }
+
+  .interview-app .message {
+    max-width: 100%;
+  }
+
+  .interview-app .speech-row-flow,
+  .interview-app .answer-form-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .presentation-app .flow-status,
+  .interview-app .flow-status {
+    top: 10px;
+    right: 10px;
+    bottom: auto;
+    max-width: calc(100% - 20px);
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 420px) {
+  .interview-app .flow-heading {
+    font-size: 22px;
+  }
+
+  .interview-app .upload-box strong,
+  .interview-app .choice-card-small {
+    font-size: 16px;
+  }
+
+  .presentation-app .time-box,
+  .interview-app .time-box {
+    padding: 16px;
+  }
+
+  .presentation-app .time-inputs,
+  .interview-app .time-inputs {
+    flex-wrap: wrap;
   }
 }

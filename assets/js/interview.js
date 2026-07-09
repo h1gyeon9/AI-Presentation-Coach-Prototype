@@ -1120,7 +1120,10 @@ async function readResumeFile(file) {
   state.resumeText = "";
   elements.fileName.textContent = file ? file.name : "선택된 파일 없음";
 
-  if (!file) return;
+  if (!file) {
+    persistSession();
+    return;
+  }
 
   const textLike =
     file.type.startsWith("text/") ||
