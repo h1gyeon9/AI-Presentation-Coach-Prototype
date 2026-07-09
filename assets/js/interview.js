@@ -53,6 +53,7 @@ const state = {
   silenceEvents: [],
   pendingRetry: null,
   lastReport: null,
+  reportGenerating: false,
   activeReportTab: "language",
   cameraStream: null,
   cameraActive: false,
@@ -111,6 +112,7 @@ const elements = {
   resetButton: $("#resetButton"),
   apiNotice: $("#apiNotice"),
   reportContent: $("#reportContent"),
+  loadingStatus: $("#interview-loading-status"),
   personaSummary: $("#personaSummary"),
   turnMetric: $("#turnMetric"),
   fillerMetric: $("#fillerMetric"),
@@ -211,6 +213,15 @@ function setConnection(text, tone = "blue") {
     red: "#b42318",
   };
   elements.connectionPill.style.color = colors[tone] || colors.blue;
+}
+
+function setNonverbalVideoStatus(message) {
+  if (elements.cameraStatus) {
+    elements.cameraStatus.textContent = message;
+  }
+  if (elements.loadingStatus) {
+    elements.loadingStatus.textContent = message;
+  }
 }
 
 function updateMetrics() {
@@ -430,7 +441,7 @@ function startNonverbalSession(mode, statusText) {
 
   elements.cameraStage.classList.toggle("is-live", mode === "live");
   elements.cameraMode.textContent = mode === "live" ? "카메라" : "자동 진행";
-  elements.cameraStatus.textContent = statusText;
+  setNonverbalVideoStatus(statusText);
   elements.cameraButton.textContent = mode === "live" ? "카메라 끄기" : "카메라 켜기";
 
   tickNonverbal();
@@ -471,7 +482,7 @@ function completeNonverbalVideoCapture() {
     });
     state.nonverbalVideoBytes = state.nonverbalVideoBlob.size;
     if (state.cameraActive && state.nonverbalMode === "live") {
-      elements.cameraStatus.textContent = "Gemini 리포트용 영상 샘플 저장 완료";
+      setNonverbalVideoStatus("Gemini 리포트용 영상 샘플 저장 완료");
     }
   } else if (!state.nonverbalVideoIssue) {
     state.nonverbalVideoIssue = "녹화 조각이 생성되지 않았습니다.";
@@ -516,7 +527,7 @@ async function resetNonverbalVideoCapture() {
 
 function startNonverbalVideoCapture(stream) {
   if (!stream || typeof MediaRecorder === "undefined") {
-    elements.cameraStatus.textContent = "카메라 미리보기 중 · 브라우저 영상 녹화 미지원";
+    setNonverbalVideoStatus("카메라 미리보기 중 · 브라우저 영상 녹화 미지원");
     return;
   }
 
@@ -548,22 +559,22 @@ function startNonverbalVideoCapture(stream) {
 
     recorder.onstop = completeNonverbalVideoCapture;
     recorder.onerror = () => {
-      elements.cameraStatus.textContent = "카메라 미리보기 중 · 영상 샘플 저장 실패";
+      setNonverbalVideoStatus("카메라 미리보기 중 · 영상 샘플 저장 실패");
       completeNonverbalVideoCapture();
     };
 
     recorder.start(NONVERBAL_VIDEO_TIMESLICE_MS);
-    elements.cameraStatus.textContent = "카메라 미리보기 및 Gemini용 영상 샘플 저장 중";
+    setNonverbalVideoStatus("카메라 미리보기 및 Gemini용 영상 샘플 저장 중");
   } catch (error) {
     state.nonverbalRecorder = null;
     clearNonverbalVideoState();
-    elements.cameraStatus.textContent = "카메라 미리보기 중 · 영상 샘플 저장 불가";
+    setNonverbalVideoStatus("카메라 미리보기 중 · 영상 샘플 저장 불가");
   }
 }
 
 async function prepareNonverbalVideoPayload() {
   if (state.nonverbalRecorder?.state === "recording") {
-    elements.cameraStatus.textContent = "Gemini 리포트용 영상 샘플 정리 중";
+    setNonverbalVideoStatus("Gemini 리포트용 영상 샘플 정리 중");
     try {
       state.nonverbalRecorder.requestData();
     } catch (error) {
@@ -599,9 +610,11 @@ function stopNonverbalSession(clearHistory = false) {
   state.nonverbalMode = "idle";
   elements.cameraStage.classList.remove("is-live");
   elements.cameraMode.textContent = "대기";
-  elements.cameraStatus.textContent = clearHistory
-    ? "카메라 대기 중"
-    : "카메라가 꺼졌습니다. 마지막 신호가 리포트에 반영됩니다.";
+  setNonverbalVideoStatus(
+    clearHistory
+      ? "카메라 대기 중"
+      : "카메라가 꺼졌습니다. 마지막 신호가 리포트에 반영됩니다.",
+  );
   elements.cameraButton.textContent = "카메라 켜기";
 
   if (clearHistory) {
@@ -624,7 +637,7 @@ async function startCamera() {
     return;
   }
 
-  elements.cameraStatus.textContent = "카메라 권한 확인 중";
+  setNonverbalVideoStatus("카메라 권한 확인 중");
   elements.cameraButton.disabled = true;
 
   try {
@@ -1621,16 +1634,18 @@ async function generateReport() {
   if (!state.answers.length) return;
   const analysis = analyzeAnswers();
   state.activeReportTab = state.activeReportTab || "language";
+  state.reportGenerating = true;
   renderReport(analysis);
   elements.reportButton.disabled = true;
   elements.reportButton.textContent = "생성 중";
 
   try {
+    setNonverbalVideoStatus("Gemini 리포트용 영상 샘플 정리 중");
     const nonverbalMedia = await prepareNonverbalVideoPayload();
     if (nonverbalMedia?.mediaBase64) {
-      elements.cameraStatus.textContent = `Gemini 리포트에 카메라 영상 샘플 첨부됨 · ${Math.round(nonverbalMedia.size / 1024)}KB`;
+      setNonverbalVideoStatus(`Gemini 리포트에 카메라 영상 샘플 첨부됨 · ${Math.round(nonverbalMedia.size / 1024)}KB`);
     } else {
-      elements.cameraStatus.textContent = `Gemini 리포트용 영상 샘플 없음 · ${state.nonverbalVideoIssue || "로컬 신호 요약 사용"}`;
+      setNonverbalVideoStatus(`Gemini 리포트용 영상 샘플 없음 · ${state.nonverbalVideoIssue || "로컬 신호 요약 사용"}`);
     }
     const data = await callGemini("report", {
       profile: getProfile(),
@@ -1647,6 +1662,7 @@ async function generateReport() {
     setConnection("AI 리포트 실패", "red");
     showApiNotice(message, generateReport);
   } finally {
+    state.reportGenerating = false;
     elements.reportButton.textContent = "리포트 생성";
     elements.reportButton.disabled = false;
     persistSession();

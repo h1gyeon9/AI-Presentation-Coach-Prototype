@@ -226,7 +226,7 @@ const interviewReportObserver = new MutationObserver(() => {
   const loading = document
     .querySelector('[data-screen="interview-loading"]')
     .classList.contains("is-active");
-  if (loading && state.lastReport) {
+  if (loading && state.lastReport && !state.reportGenerating) {
     setInterviewReportPersona();
     showInterviewScreen("interview-report");
   }
