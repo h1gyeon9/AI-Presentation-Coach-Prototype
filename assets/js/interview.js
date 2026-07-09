@@ -6,7 +6,7 @@ const TTS_CHUNK_MAX_CHARS = 1200;
 const NONVERBAL_TICK_MS = 1600;
 const NONVERBAL_LOG_EVERY_TICKS = 5;
 const NONVERBAL_VIDEO_MAX_BYTES = 3.5 * 1024 * 1024;
-const NONVERBAL_VIDEO_TIMESLICE_MS = 2000;
+const NONVERBAL_VIDEO_STOP_TIMEOUT_MS = 2500;
 const NONVERBAL_VIDEO_BITRATE = 220000;
 const NONVERBAL_VIDEO_CONSTRAINTS = {
   width: { ideal: 480 },
@@ -75,6 +75,7 @@ const state = {
   nonverbalVideoMimeType: "",
   nonverbalVideoStopPromise: null,
   nonverbalVideoStopResolve: null,
+  nonverbalVideoStopTimer: null,
   nonverbalVideoDiscard: false,
   nonverbalVideoIssue: "",
   ttsAudio: null,
@@ -463,6 +464,8 @@ function clearNonverbalVideoState() {
 }
 
 function resolveNonverbalVideoStop() {
+  window.clearTimeout(state.nonverbalVideoStopTimer);
+  state.nonverbalVideoStopTimer = null;
   if (state.nonverbalVideoStopResolve) {
     state.nonverbalVideoStopResolve();
   }
@@ -506,6 +509,12 @@ function stopNonverbalVideoCapture({ discard = false } = {}) {
     state.nonverbalVideoStopResolve = resolve;
   });
   const stopPromise = state.nonverbalVideoStopPromise;
+  state.nonverbalVideoStopTimer = window.setTimeout(() => {
+    if (!state.nonverbalVideoIssue) {
+      state.nonverbalVideoIssue = "브라우저가 영상 녹화 종료 이벤트를 반환하지 않았습니다.";
+    }
+    completeNonverbalVideoCapture();
+  }, NONVERBAL_VIDEO_STOP_TIMEOUT_MS);
 
   try {
     if (state.nonverbalRecorder.state !== "inactive") {
@@ -545,16 +554,8 @@ function startNonverbalVideoCapture(stream) {
 
     recorder.ondataavailable = (event) => {
       if (state.nonverbalVideoDiscard || !event.data?.size) return;
-
-      const nextSize = state.nonverbalVideoBytes + event.data.size;
-      if (nextSize <= NONVERBAL_VIDEO_MAX_BYTES) {
-        state.nonverbalVideoChunks.push(event.data);
-        state.nonverbalVideoBytes = nextSize;
-      }
-
-      if (nextSize >= NONVERBAL_VIDEO_MAX_BYTES && recorder.state === "recording") {
-        recorder.stop();
-      }
+      state.nonverbalVideoChunks.push(event.data);
+      state.nonverbalVideoBytes += event.data.size;
     };
 
     recorder.onstop = completeNonverbalVideoCapture;
@@ -563,7 +564,7 @@ function startNonverbalVideoCapture(stream) {
       completeNonverbalVideoCapture();
     };
 
-    recorder.start(NONVERBAL_VIDEO_TIMESLICE_MS);
+    recorder.start();
     setNonverbalVideoStatus("카메라 미리보기 및 Gemini용 영상 샘플 저장 중");
   } catch (error) {
     state.nonverbalRecorder = null;
@@ -575,12 +576,6 @@ function startNonverbalVideoCapture(stream) {
 async function prepareNonverbalVideoPayload() {
   if (state.nonverbalRecorder?.state === "recording") {
     setNonverbalVideoStatus("Gemini 리포트용 영상 샘플 정리 중");
-    try {
-      state.nonverbalRecorder.requestData();
-    } catch (error) {
-      // 일부 브라우저는 stop 직전 requestData 호출을 허용하지 않는다.
-    }
-    await new Promise((resolve) => window.setTimeout(resolve, 250));
     await stopNonverbalVideoCapture();
   }
 
