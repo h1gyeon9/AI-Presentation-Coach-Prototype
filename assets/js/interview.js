@@ -119,7 +119,6 @@ const elements = {
   cameraStage: $("#cameraStage"),
   cameraPreview: $("#cameraPreview"),
   cameraButton: $("#cameraButton"),
-  simulationButton: $("#simulationButton"),
   cameraMode: $("#cameraMode"),
   cameraStatus: $("#cameraStatus"),
   signalFeed: $("#signalFeed"),
@@ -429,10 +428,9 @@ function startNonverbalSession(mode, statusText) {
   state.signalEvents = [];
 
   elements.cameraStage.classList.toggle("is-live", mode === "live");
-  elements.cameraMode.textContent = mode === "live" ? "카메라" : "데모";
+  elements.cameraMode.textContent = mode === "live" ? "카메라" : "자동 진행";
   elements.cameraStatus.textContent = statusText;
   elements.cameraButton.textContent = mode === "live" ? "카메라 끄기" : "카메라 켜기";
-  elements.simulationButton.textContent = mode === "demo" ? "데모 재시작" : "데모 모드";
 
   tickNonverbal();
   state.nonverbalTimer = window.setInterval(tickNonverbal, NONVERBAL_TICK_MS);
@@ -589,7 +587,6 @@ function stopNonverbalSession(clearHistory = false) {
     ? "카메라 대기 중"
     : "카메라가 꺼졌습니다. 마지막 신호가 리포트에 반영됩니다.";
   elements.cameraButton.textContent = "카메라 켜기";
-  elements.simulationButton.textContent = "데모 모드";
 
   if (clearHistory) {
     state.nonverbal = { eye: 0, posture: 0, expression: 0, gesture: 0 };
@@ -607,7 +604,7 @@ async function startCamera() {
   }
 
   if (!navigator.mediaDevices?.getUserMedia) {
-    startNonverbalSession("demo", "카메라 API를 사용할 수 없어 데모 모드로 실행 중");
+    startNonverbalSession("demo", "카메라 API를 사용할 수 없어 자동으로 진행합니다");
     return;
   }
 
@@ -629,7 +626,7 @@ async function startCamera() {
     state.cameraActive = false;
     state.cameraStream = null;
     elements.cameraPreview.srcObject = null;
-    startNonverbalSession("demo", "카메라 권한 없이 데모 모드 실행 중");
+    startNonverbalSession("demo", "카메라 권한이 없어 자동으로 진행합니다");
   } finally {
     elements.cameraButton.disabled = false;
   }
@@ -644,14 +641,6 @@ function stopCamera(clearHistory = false) {
   state.cameraActive = false;
   elements.cameraPreview.srcObject = null;
   stopNonverbalSession(clearHistory);
-}
-
-async function startDemoMode() {
-  if (state.cameraActive) {
-    stopCamera(false);
-  }
-  await resetNonverbalVideoCapture();
-  startNonverbalSession("demo", "가상 비언어 신호 분석 중");
 }
 
 function analyzeNonverbal() {
@@ -2044,7 +2033,6 @@ elements.depthInput.addEventListener("input", () => {
 
 elements.startButton.addEventListener("click", startInterview);
 elements.cameraButton.addEventListener("click", startCamera);
-elements.simulationButton.addEventListener("click", startDemoMode);
 elements.retryButton.addEventListener("click", () => {
   if (state.pendingRetry) state.pendingRetry();
 });
