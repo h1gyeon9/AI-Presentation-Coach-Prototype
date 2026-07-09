@@ -58,13 +58,14 @@
         <h1 class="flow-heading" id="presentation-setup-title">어떤 발표를 준비하고 있나요?</h1>
         <div class="flow-screen-body">
           <select class="sr-only" id="presentation-type-select" tabindex="-1" aria-hidden="true">
-            <option value="major-class" selected>전공 수업 발표</option>
+            <option value="" selected>발표 유형을 선택해주세요</option>
+            <option value="major-class">전공 수업 발표</option>
             <option value="liberal-class">교양 수업 발표</option>
             <option value="activity">대외활동 발표</option>
             <option value="business">IR 발표</option>
           </select>
           <div class="design-choice-list" role="radiogroup" aria-label="발표 유형">
-            <button class="design-choice-card is-selected" type="button" data-type-value="major-class" aria-pressed="true">
+            <button class="design-choice-card" type="button" data-type-value="major-class" aria-pressed="false">
               <span class="sprite-icon type-major"><img src="./assets/images/presentation-type-sprite.png" alt="" /></span>
               <span><strong>전공 수업 발표</strong><small>팀플 발표, 논문 발표, 전공 세미나</small></span>
             </button>
@@ -84,7 +85,7 @@
         </div>
         <div class="flow-nav">
           <button class="flow-button" type="button" data-go="upload">이전</button>
-          <button class="flow-button flow-button-primary" id="presentation-setup-next" type="button" data-go="persona">
+          <button class="flow-button flow-button-primary" id="presentation-setup-next" type="button" data-go="persona" disabled>
             다음
           </button>
         </div>
@@ -94,8 +95,9 @@
         <h1 class="flow-heading" id="presentation-persona-title">페르소나를 선택해주세요.</h1>
         <div class="flow-screen-body persona-body">
           <select class="sr-only" id="audience-select" tabindex="-1" aria-hidden="true">
+            <option value="" selected>페르소나를 선택해주세요</option>
             <option value="general">일반 청중</option>
-            <option value="professor" selected>교수님</option>
+            <option value="professor">교수님</option>
             <option value="team">팀원/스터디</option>
             <option value="investor">IR 투자자</option>
           </select>
@@ -105,7 +107,7 @@
               <strong>일반 청중</strong>
               <span>발표 내용 이해에 관한 질문과 피드백을 제공</span>
             </button>
-            <button class="persona-card is-selected" type="button" data-persona-value="professor" aria-pressed="true">
+            <button class="persona-card" type="button" data-persona-value="professor" aria-pressed="false">
               <img src="./assets/images/persona-professor.png" alt="" />
               <strong>교수님</strong>
               <span>냉정하고 분석적으로 질문과 피드백 제공</span>
@@ -124,7 +126,7 @@
         </div>
         <div class="flow-nav">
           <button class="flow-button" type="button" data-go="setup">이전</button>
-          <button class="flow-button flow-button-primary" type="button" data-go="ready">다음</button>
+          <button class="flow-button flow-button-primary" id="presentation-persona-next" type="button" data-go="ready" disabled>다음</button>
         </div>
       </section>
 
@@ -132,7 +134,7 @@
         <h1 class="flow-heading" id="presentation-ready-title">목적을 선택해주세요</h1>
         <div class="flow-screen-body">
           <div class="design-choice-list purpose-list" role="radiogroup" aria-label="발표 코칭 방식">
-          <button class="design-choice-card is-selected" type="button" data-presentation-branch="script" aria-pressed="true">
+          <button class="design-choice-card" type="button" data-presentation-branch="script" aria-pressed="false">
             <span class="sprite-icon purpose-script"><img src="./assets/images/presentation-purpose-sprite.png" alt="" /></span>
             <span><strong>발표 대본 수정</strong><small>원고의 흐름, 표현, 논리 구조, 시간 배분을 다듬고 싶어요</small></span>
           </button>
@@ -144,7 +146,7 @@
         </div>
         <div class="flow-nav">
           <button class="flow-button" type="button" data-go="persona">이전</button>
-          <button class="flow-button flow-button-primary" id="presentation-branch-next" type="button">다음</button>
+          <button class="flow-button flow-button-primary" id="presentation-branch-next" type="button" disabled>다음</button>
         </div>
       </section>
 
@@ -347,6 +349,6 @@
     </main>
 
     <script src="./assets/js/presentation.js"></script>
-    <script src="./assets/js/presentation-flow.js"></script>
+    <script src="./assets/js/presentation-flow.js?v=2"></script>
   </body>
 </html>

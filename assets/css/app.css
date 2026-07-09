@@ -1132,11 +1132,12 @@ textarea:focus-visible {
   padding: 50px 28px 34px;
   border: 3px solid var(--pita-card-border);
   border-radius: 12px;
-  color: #dbe9eb;
+  color: var(--pita-muted);
   background: var(--pita-card);
 }
 
-.home-app .mode-card.is-selected {
+.home-app .mode-card.is-selected,
+.home-app .mode-card:hover {
   border: 2px solid var(--pita-cyan-border);
   color: #fff;
   background: var(--pita-selected-bg);
@@ -1144,13 +1145,14 @@ textarea:focus-visible {
 
 .home-app .mode-card:hover {
   transform: none;
-  border-color: var(--pita-cyan-border);
 }
 
 .home-app .mode-card img {
   width: 244px;
   height: 240px;
   object-fit: contain;
+  filter: brightness(0) saturate(100%) invert(67%) sepia(7%) saturate(286%)
+    hue-rotate(147deg) brightness(94%) contrast(91%);
 }
 
 .home-app .mode-card[data-mode="presentation"] img {
@@ -1159,6 +1161,7 @@ textarea:focus-visible {
 
 .home-app .mode-card strong {
   margin-top: 18px;
+  color: #dbe9eb;
   font-size: 32px;
   font-weight: 600;
 }
@@ -1171,6 +1174,17 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
+.home-app .mode-card:hover img,
+.home-app .mode-card.is-selected img {
+  filter: brightness(0) saturate(100%) invert(100%);
+}
+
+.home-app .mode-card:hover strong,
+.home-app .mode-card.is-selected strong {
+  color: #fff;
+}
+
+.home-app .mode-card:hover > span:last-child,
 .home-app .mode-card.is-selected > span:last-child {
   color: #fff;
 }
@@ -1375,7 +1389,7 @@ textarea:focus-visible {
   border: 2px solid var(--pita-card-border);
   border-radius: 12px;
   padding: 26px 36px;
-  color: var(--pita-text);
+  color: var(--pita-muted);
   background: var(--pita-card);
   text-align: left;
 }
@@ -1383,6 +1397,7 @@ textarea:focus-visible {
 .design-choice-card.is-selected,
 .design-choice-card:hover {
   border-color: var(--pita-cyan);
+  color: #fff;
   background: var(--pita-selected-bg);
 }
 
@@ -1393,15 +1408,26 @@ textarea:focus-visible {
 }
 
 .design-choice-card strong {
+  color: #dbe9eb;
   font-size: 28px;
   font-weight: 600;
 }
 
 .design-choice-card small {
-  color: #8a8a8a;
+  color: var(--pita-muted);
   font-size: 22px;
   font-weight: 500;
   white-space: nowrap;
+}
+
+.design-choice-card:hover small,
+.design-choice-card.is-selected small {
+  color: #fff;
+}
+
+.design-choice-card:hover strong,
+.design-choice-card.is-selected strong {
+  color: #fff;
 }
 
 .sprite-icon {
@@ -1415,6 +1441,13 @@ textarea:focus-visible {
   position: absolute;
   max-width: none;
   pointer-events: none;
+  filter: brightness(0) saturate(100%) invert(67%) sepia(7%) saturate(286%)
+    hue-rotate(147deg) brightness(94%) contrast(91%);
+}
+
+.design-choice-card:hover .sprite-icon img,
+.design-choice-card.is-selected .sprite-icon img {
+  filter: brightness(0) saturate(100%) invert(100%);
 }
 
 .type-major img {
@@ -1483,7 +1516,7 @@ textarea:focus-visible {
   border: 3px solid var(--pita-card-border);
   border-radius: 16px;
   padding: 30px 28px;
-  color: #dbe9eb;
+  color: var(--pita-muted);
   background: var(--pita-card);
 }
 
@@ -1498,10 +1531,13 @@ textarea:focus-visible {
   width: 236px;
   height: 208px;
   object-fit: contain;
+  filter: brightness(0) saturate(100%) invert(67%) sepia(7%) saturate(286%)
+    hue-rotate(147deg) brightness(94%) contrast(91%);
 }
 
 .persona-card strong {
   margin-top: 28px;
+  color: #dbe9eb;
   font-size: 30px;
 }
 
@@ -1512,6 +1548,17 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
+.persona-card:hover img,
+.persona-card.is-selected img {
+  filter: brightness(0) saturate(100%) invert(100%);
+}
+
+.persona-card:hover strong,
+.persona-card.is-selected strong {
+  color: #fff;
+}
+
+.persona-card:hover span,
 .persona-card.is-selected span {
   color: #fff;
 }

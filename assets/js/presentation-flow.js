@@ -3,6 +3,7 @@ const presentationScreens = [...document.querySelectorAll("[data-screen]")];
 const presentationType = document.getElementById("presentation-type-select");
 const presentationPurpose = document.getElementById("audience-select");
 const presentationSetupNext = document.getElementById("presentation-setup-next");
+const presentationPersonaNext = document.getElementById("presentation-persona-next");
 const presentationModeSelect = document.getElementById("mode-select");
 const presentationBranchButtons = [...document.querySelectorAll("[data-presentation-branch]")];
 const presentationBranchNext = document.getElementById("presentation-branch-next");
@@ -19,7 +20,7 @@ const presentationScriptText = document.getElementById("script-text");
 const presentationTypeButtons = [...document.querySelectorAll("[data-type-value]")];
 const presentationPersonaButtons = [...document.querySelectorAll("[data-persona-value]")];
 
-let presentationBranch = "script";
+let presentationBranch = null;
 let presentationCheckStream = null;
 let presentationCalibrationStream = null;
 let presentationCalibrationInterval = null;
@@ -53,7 +54,8 @@ document.querySelectorAll("[data-go]").forEach((button) => {
 });
 
 function updatePresentationSetup() {
-  presentationSetupNext.disabled = !(presentationType.value && presentationPurpose.value);
+  presentationSetupNext.disabled = !presentationType.value;
+  presentationPersonaNext.disabled = !presentationPurpose.value;
   updateGenerateReportAvailability();
 }
 
@@ -100,10 +102,12 @@ presentationBranchButtons.forEach((button) => {
       item.classList.toggle("is-selected", selected);
       item.setAttribute("aria-pressed", String(selected));
     });
+    presentationBranchNext.disabled = false;
   });
 });
 
 presentationBranchNext.addEventListener("click", () => {
+  if (!presentationBranch) return;
   presentationModeSelect.value = presentationBranch === "practice" ? "record" : "script";
   presentationModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
   showPresentationScreen(presentationBranch === "practice" ? "environment" : "script");
