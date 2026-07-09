@@ -322,10 +322,19 @@ function escapePresentationHtml(value) {
 function fileToBase64ForPresentation(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(",")[1]);
+    reader.onload = () => resolve(dataUrlToBase64ForPresentation(reader.result));
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+function dataUrlToBase64ForPresentation(value) {
+  const text = String(value || "");
+  const marker = "base64,";
+  const markerIndex = text.indexOf(marker);
+  if (markerIndex !== -1) return text.slice(markerIndex + marker.length);
+  const commaIndex = text.lastIndexOf(",");
+  return commaIndex !== -1 ? text.slice(commaIndex + 1) : text;
 }
 
 document.getElementById("presentation-mic-check").addEventListener("click", async () => {

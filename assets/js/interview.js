@@ -1101,11 +1101,20 @@ function fileToBase64(file) {
     const reader = new FileReader();
     reader.onload = () => {
       const result = String(reader.result || "");
-      resolve(result.includes(",") ? result.split(",")[1] : result);
+      resolve(dataUrlToBase64(result));
     };
     reader.onerror = () => reject(reader.error || new Error("파일을 읽지 못했습니다."));
     reader.readAsDataURL(file);
   });
+}
+
+function dataUrlToBase64(value) {
+  const text = String(value || "");
+  const marker = "base64,";
+  const markerIndex = text.indexOf(marker);
+  if (markerIndex !== -1) return text.slice(markerIndex + marker.length);
+  const commaIndex = text.lastIndexOf(",");
+  return commaIndex !== -1 ? text.slice(commaIndex + 1) : text;
 }
 
 async function parseResumeDocument(file) {

@@ -715,10 +715,19 @@ generateReportBtn.addEventListener("click", async () => {
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result.split(",")[1]);
+    reader.onloadend = () => resolve(dataUrlToBase64(reader.result));
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+function dataUrlToBase64(value) {
+  const text = String(value || "");
+  const marker = "base64,";
+  const markerIndex = text.indexOf(marker);
+  if (markerIndex !== -1) return text.slice(markerIndex + marker.length);
+  const commaIndex = text.lastIndexOf(",");
+  return commaIndex !== -1 ? text.slice(commaIndex + 1) : text;
 }
 
 async function requestLegacyPresentationAnalysis(payload) {
