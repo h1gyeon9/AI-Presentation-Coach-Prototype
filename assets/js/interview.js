@@ -609,7 +609,6 @@ function startNonverbalVideoCapture(stream) {
         );
       }
       if (state.nonverbalVideoBytes >= NONVERBAL_VIDEO_MAX_BYTES && recorder.state === "recording") {
-        state.nonverbalVideoIssue = `영상 샘플이 너무 큽니다. (${Math.round(state.nonverbalVideoBytes / 1024)}KB)`;
         recorder.stop();
       }
     };
@@ -658,11 +657,6 @@ async function prepareNonverbalVideoPayload() {
     }
     return null;
   }
-  if (state.nonverbalVideoBlob.size > NONVERBAL_VIDEO_MAX_BYTES) {
-    state.nonverbalVideoIssue = `영상 샘플이 너무 큽니다. (${Math.round(state.nonverbalVideoBlob.size / 1024)}KB)`;
-    return null;
-  }
-
   return {
     mediaBase64: await fileToBase64(state.nonverbalVideoBlob),
     mediaMimeType: state.nonverbalVideoBlob.type || state.nonverbalVideoMimeType || "video/webm",
