@@ -6,12 +6,15 @@ const TTS_CHUNK_MAX_CHARS = 1200;
 const NONVERBAL_TICK_MS = 1600;
 const NONVERBAL_LOG_EVERY_TICKS = 5;
 const NONVERBAL_VIDEO_MAX_BYTES = 3.5 * 1024 * 1024;
-const NONVERBAL_VIDEO_STOP_TIMEOUT_MS = 2500;
-const NONVERBAL_VIDEO_BITRATE = 220000;
+const NONVERBAL_VIDEO_STOP_TIMEOUT_MS = 8000;
+const NONVERBAL_VIDEO_FLUSH_TIMEOUT_MS = 1500;
+const NONVERBAL_VIDEO_FLUSH_INTERVAL_MS = 5000;
+const NONVERBAL_VIDEO_FINALIZE_DELAY_MS = 250;
+const NONVERBAL_VIDEO_BITRATE = 200000;
 const NONVERBAL_AUDIO_BITRATE = 32000;
 const NONVERBAL_VIDEO_CONSTRAINTS = {
-  width: { ideal: 480 },
-  height: { ideal: 360 },
+  width: { ideal: 320 },
+  height: { ideal: 240 },
   facingMode: "user",
 };
 const SILENCE_PROMPT_MS = 10000;
@@ -77,6 +80,7 @@ const state = {
   nonverbalVideoStopPromise: null,
   nonverbalVideoStopResolve: null,
   nonverbalVideoStopTimer: null,
+  nonverbalVideoFlushTimer: null,
   nonverbalVideoDiscard: false,
   nonverbalVideoIssue: "",
   ttsAudio: null,
@@ -452,11 +456,13 @@ function startNonverbalSession(mode, statusText) {
 
 function getSupportedNonverbalVideoType() {
   if (typeof MediaRecorder === "undefined") return "";
-  const candidates = ["video/webm;codecs=vp8,opus", "video/webm;codecs=vp8", "video/webm"];
+  const candidates = ["video/webm"];
   return candidates.find((type) => MediaRecorder.isTypeSupported?.(type)) || "";
 }
 
 function clearNonverbalVideoState() {
+  window.clearInterval(state.nonverbalVideoFlushTimer);
+  state.nonverbalVideoFlushTimer = null;
   state.nonverbalVideoChunks = [];
   state.nonverbalVideoBytes = 0;
   state.nonverbalVideoBlob = null;
@@ -467,11 +473,36 @@ function clearNonverbalVideoState() {
 function resolveNonverbalVideoStop() {
   window.clearTimeout(state.nonverbalVideoStopTimer);
   state.nonverbalVideoStopTimer = null;
+  window.clearInterval(state.nonverbalVideoFlushTimer);
+  state.nonverbalVideoFlushTimer = null;
   if (state.nonverbalVideoStopResolve) {
     state.nonverbalVideoStopResolve();
   }
   state.nonverbalVideoStopPromise = null;
   state.nonverbalVideoStopResolve = null;
+}
+
+function waitForNonverbalVideoData(previousBytes = state.nonverbalVideoBytes) {
+  return new Promise((resolve) => {
+    if (state.nonverbalVideoBytes > previousBytes) {
+      resolve(true);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      if (state.nonverbalVideoBytes > previousBytes) {
+        window.clearInterval(timer);
+        resolve(true);
+        return;
+      }
+
+      if (Date.now() - startedAt >= NONVERBAL_VIDEO_FLUSH_TIMEOUT_MS) {
+        window.clearInterval(timer);
+        resolve(false);
+      }
+    }, 50);
+  });
 }
 
 function completeNonverbalVideoCapture() {
@@ -535,6 +566,20 @@ async function resetNonverbalVideoCapture() {
   clearNonverbalVideoState();
 }
 
+async function flushNonverbalVideoCapture() {
+  const recorder = state.nonverbalRecorder;
+  if (!recorder || recorder.state !== "recording") return false;
+
+  const previousBytes = state.nonverbalVideoBytes;
+  try {
+    recorder.requestData();
+  } catch (error) {
+    return false;
+  }
+
+  return waitForNonverbalVideoData(previousBytes);
+}
+
 function startNonverbalVideoCapture(stream) {
   if (!stream || typeof MediaRecorder === "undefined") {
     setNonverbalVideoStatus("카메라 미리보기 중 · 브라우저 영상 녹화 미지원");
@@ -558,15 +603,38 @@ function startNonverbalVideoCapture(stream) {
       if (state.nonverbalVideoDiscard || !event.data?.size) return;
       state.nonverbalVideoChunks.push(event.data);
       state.nonverbalVideoBytes += event.data.size;
+      if (state.cameraActive && state.nonverbalMode === "live") {
+        setNonverbalVideoStatus(
+          `카메라 미리보기 및 Gemini용 영상 샘플 저장 중 · ${Math.round(state.nonverbalVideoBytes / 1024)}KB`,
+        );
+      }
+      if (state.nonverbalVideoBytes >= NONVERBAL_VIDEO_MAX_BYTES && recorder.state === "recording") {
+        state.nonverbalVideoIssue = `영상 샘플이 너무 큽니다. (${Math.round(state.nonverbalVideoBytes / 1024)}KB)`;
+        recorder.stop();
+      }
     };
 
-    recorder.onstop = completeNonverbalVideoCapture;
+    recorder.onstop = () => {
+      window.setTimeout(completeNonverbalVideoCapture, NONVERBAL_VIDEO_FINALIZE_DELAY_MS);
+    };
     recorder.onerror = () => {
       setNonverbalVideoStatus("카메라 미리보기 중 · 영상 샘플 저장 실패");
       completeNonverbalVideoCapture();
     };
 
     recorder.start();
+    state.nonverbalVideoFlushTimer = window.setInterval(() => {
+      if (recorder.state !== "recording") {
+        window.clearInterval(state.nonverbalVideoFlushTimer);
+        state.nonverbalVideoFlushTimer = null;
+        return;
+      }
+      try {
+        recorder.requestData();
+      } catch (error) {
+        // requestData는 브라우저별로 실패할 수 있으므로 리포트 생성 시 stop flush를 한 번 더 시도한다.
+      }
+    }, NONVERBAL_VIDEO_FLUSH_INTERVAL_MS);
     setNonverbalVideoStatus("카메라 미리보기 및 Gemini용 영상 샘플 저장 중");
   } catch (error) {
     state.nonverbalRecorder = null;
@@ -578,6 +646,7 @@ function startNonverbalVideoCapture(stream) {
 async function prepareNonverbalVideoPayload() {
   if (state.nonverbalRecorder?.state === "recording") {
     setNonverbalVideoStatus("Gemini 리포트용 영상 샘플 정리 중");
+    await flushNonverbalVideoCapture();
     await stopNonverbalVideoCapture();
   }
 
