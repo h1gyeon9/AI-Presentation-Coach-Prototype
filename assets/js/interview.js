@@ -8,6 +8,7 @@ const NONVERBAL_LOG_EVERY_TICKS = 5;
 const NONVERBAL_VIDEO_MAX_BYTES = 3.5 * 1024 * 1024;
 const NONVERBAL_VIDEO_STOP_TIMEOUT_MS = 2500;
 const NONVERBAL_VIDEO_BITRATE = 220000;
+const NONVERBAL_AUDIO_BITRATE = 32000;
 const NONVERBAL_VIDEO_CONSTRAINTS = {
   width: { ideal: 480 },
   height: { ideal: 360 },
@@ -451,7 +452,7 @@ function startNonverbalSession(mode, statusText) {
 
 function getSupportedNonverbalVideoType() {
   if (typeof MediaRecorder === "undefined") return "";
-  const candidates = ["video/webm;codecs=vp8", "video/webm"];
+  const candidates = ["video/webm;codecs=vp8,opus", "video/webm;codecs=vp8", "video/webm"];
   return candidates.find((type) => MediaRecorder.isTypeSupported?.(type)) || "";
 }
 
@@ -547,6 +548,7 @@ function startNonverbalVideoCapture(stream) {
   try {
     const options = {
       videoBitsPerSecond: NONVERBAL_VIDEO_BITRATE,
+      audioBitsPerSecond: NONVERBAL_AUDIO_BITRATE,
       ...(mimeType ? { mimeType } : {}),
     };
     const recorder = new MediaRecorder(stream, options);
@@ -636,16 +638,30 @@ async function startCamera() {
   elements.cameraButton.disabled = true;
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: NONVERBAL_VIDEO_CONSTRAINTS,
-      audio: false,
-    });
+    let stream;
+    let videoOnlyFallback = false;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: NONVERBAL_VIDEO_CONSTRAINTS,
+        audio: true,
+      });
+    } catch (error) {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: NONVERBAL_VIDEO_CONSTRAINTS,
+        audio: false,
+      });
+      videoOnlyFallback = true;
+    }
     state.cameraStream = stream;
     state.cameraActive = true;
     elements.cameraPreview.srcObject = stream;
     await elements.cameraPreview.play().catch(() => {});
     startNonverbalSession("live", "카메라 미리보기 및 Gemini용 영상 샘플 저장 중");
     startNonverbalVideoCapture(stream);
+    if (videoOnlyFallback) {
+      state.nonverbalVideoIssue =
+        "마이크 권한을 얻지 못해 video-only 녹화로 시도했습니다.";
+    }
   } catch (error) {
     state.cameraActive = false;
     state.cameraStream = null;
