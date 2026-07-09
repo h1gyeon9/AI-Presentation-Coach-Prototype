@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Presentation Coach</title>
+    <title>PITA · AI Presentation Coach</title>
     <link rel="stylesheet" href="./assets/css/app.css" />
   </head>
   <body class="flow-app presentation-app">
     <main class="flow-shell">
-      <a class="flow-logo" href="./index.html">LOGO</a>
+      <a class="flow-logo" href="./index.html" aria-label="PITA 홈">PITA</a>
       <span class="flow-status" id="status-badge">Gemini 대기</span>
 
       <div class="sr-only" aria-hidden="true">
@@ -27,76 +27,123 @@
           프레젠테이션을 위해<br />준비한 자료를 공유해주세요
         </h1>
         <div class="flow-screen-body">
-          <h2 class="flow-section-title">발표 자료</h2>
+          <h2 class="flow-section-title">자료 공유</h2>
           <div class="upload-box">
-            <span class="upload-icon" aria-hidden="true">＋</span>
-            <strong>만들어둔 발표 자료(ppt) 및 발표 대본을 첨부해주세요</strong>
-            <p>pdf, ppt, doc (최대 50MB)</p>
+            <ol class="upload-guide">
+              <li><strong>만들어둔 발표 자료(ppt)를 첨부해주세요.</strong></li>
+              <li>심사기준표나 발표와 관련된 파일이 있다면 첨부해주세요.</li>
+              <li>작성한 발표 대본이 있다면 공유해주세요. 없어도 괜찮아요.</li>
+            </ol>
+            <p><strong>pdf(추천)</strong>, pptx, doc, png, txt, md (최대 50MB)</p>
             <button class="upload-trigger" id="presentation-document-trigger" type="button">파일 첨부</button>
             <p class="upload-state" id="presentation-document-state">선택된 파일이 없습니다.</p>
-            <p>자세하게 작성된 내용일수록 정확도가 올라가요 UP</p>
+            <p class="upload-tip">자세하게 작성된 내용일수록 정확도가 올라가요 <b>UP</b></p>
             <input
               id="presentation-document-input"
               type="file"
               accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.md"
+              multiple
               hidden
             />
           </div>
+          <div class="uploaded-files" id="presentation-file-list" hidden></div>
         </div>
-        <div class="flow-nav single">
+        <div class="flow-nav">
+          <a class="flow-button" href="./index.html">이전</a>
           <button class="flow-button flow-button-primary" type="button" data-go="setup">다음</button>
         </div>
       </section>
 
       <section class="flow-screen" data-screen="setup" aria-labelledby="presentation-setup-title">
-        <h1 class="flow-heading" id="presentation-setup-title">발표 유형/목적을 선택해주세요</h1>
+        <h1 class="flow-heading" id="presentation-setup-title">어떤 발표를 준비하고 있나요?</h1>
         <div class="flow-screen-body">
-          <label class="flow-field" for="presentation-type-select">
-            <span>발표 유형</span>
-            <select class="flow-select" id="presentation-type-select">
-              <option value="">준비하고자 하는 발표의 유형을 선택해주세요</option>
-              <option value="major-class">전공 수업 발표</option>
-              <option value="activity">대외활동 발표</option>
-              <option value="liberal-class">교양 수업 발표</option>
-              <option value="business">업무·성과 발표</option>
-              <option value="other">기타 발표</option>
-            </select>
-          </label>
-
-          <label class="flow-field" for="audience-select">
-            <span>발표 목적</span>
-            <select class="flow-select" id="audience-select">
-              <option value="">발표 목적을 선택해주세요</option>
-              <option value="professor">수업 평가</option>
-              <option value="general">정보 전달</option>
-              <option value="team">성과 공유</option>
-              <option value="interviewer">설득 및 제안</option>
-              <option value="investor">IR 투자 유치</option>
-            </select>
-          </label>
+          <select class="sr-only" id="presentation-type-select" tabindex="-1" aria-hidden="true">
+            <option value="major-class" selected>전공 수업 발표</option>
+            <option value="liberal-class">교양 수업 발표</option>
+            <option value="activity">대외활동 발표</option>
+            <option value="business">IR 발표</option>
+          </select>
+          <div class="design-choice-list" role="radiogroup" aria-label="발표 유형">
+            <button class="design-choice-card is-selected" type="button" data-type-value="major-class" aria-pressed="true">
+              <span class="sprite-icon type-major"><img src="./assets/images/presentation-type-sprite.png" alt="" /></span>
+              <span><strong>전공 수업 발표</strong><small>팀플 발표, 논문 발표, 전공 세미나</small></span>
+            </button>
+            <button class="design-choice-card" type="button" data-type-value="liberal-class" aria-pressed="false">
+              <span class="sprite-icon type-liberal"><img src="./assets/images/presentation-type-sprite.png" alt="" /></span>
+              <span><strong>교양 수업 발표</strong><small>팀플 발표</small></span>
+            </button>
+            <button class="design-choice-card" type="button" data-type-value="activity" aria-pressed="false">
+              <span class="sprite-icon type-activity"><img src="./assets/images/presentation-type-sprite.png" alt="" /></span>
+              <span><strong>대외활동 발표</strong><small>공모전, 대회 발표</small></span>
+            </button>
+            <button class="design-choice-card" type="button" data-type-value="business" aria-pressed="false">
+              <span class="sprite-icon type-ir"><img src="./assets/images/presentation-type-sprite.png" alt="" /></span>
+              <span><strong>IR 발표</strong><small>스타트업 피치덱, 투자자 미팅</small></span>
+            </button>
+          </div>
         </div>
         <div class="flow-nav">
           <button class="flow-button" type="button" data-go="upload">이전</button>
-          <button class="flow-button flow-button-primary" id="presentation-setup-next" type="button" data-go="ready" disabled>
+          <button class="flow-button flow-button-primary" id="presentation-setup-next" type="button" data-go="persona">
             다음
           </button>
         </div>
       </section>
 
-      <section class="flow-screen" data-screen="ready" aria-labelledby="presentation-ready-title">
-        <h1 class="flow-heading" id="presentation-ready-title">
-          준비가 완료되었어요!<br />뭐부터 할까요?
-        </h1>
-        <div class="choice-stack" role="radiogroup" aria-label="발표 코칭 방식">
-          <button class="choice-button is-selected" type="button" data-presentation-branch="script" aria-pressed="true">
-            발표 대본(스크립트) 수정
-          </button>
-          <button class="choice-button" type="button" data-presentation-branch="practice" aria-pressed="false">
-            실제 발표 연습
-          </button>
+      <section class="flow-screen" data-screen="persona" aria-labelledby="presentation-persona-title">
+        <h1 class="flow-heading" id="presentation-persona-title">페르소나를 선택해주세요.</h1>
+        <div class="flow-screen-body persona-body">
+          <select class="sr-only" id="audience-select" tabindex="-1" aria-hidden="true">
+            <option value="general">일반 청중</option>
+            <option value="professor" selected>교수님</option>
+            <option value="team">팀원/스터디</option>
+            <option value="investor">IR 투자자</option>
+          </select>
+          <div class="persona-grid" role="radiogroup" aria-label="발표 피드백 페르소나">
+            <button class="persona-card" type="button" data-persona-value="general" aria-pressed="false">
+              <img src="./assets/images/persona-audience.png" alt="" />
+              <strong>일반 청중</strong>
+              <span>발표 내용 이해에 관한 질문과 피드백을 제공</span>
+            </button>
+            <button class="persona-card is-selected" type="button" data-persona-value="professor" aria-pressed="true">
+              <img src="./assets/images/persona-professor.png" alt="" />
+              <strong>교수님</strong>
+              <span>냉정하고 분석적으로 질문과 피드백 제공</span>
+            </button>
+            <button class="persona-card" type="button" data-persona-value="team" aria-pressed="false">
+              <img src="./assets/images/persona-team.png" alt="" />
+              <strong>팀원/스터디</strong>
+              <span>현실성을 위주로 솔직한 질문과 피드백을 제공</span>
+            </button>
+            <button class="persona-card" type="button" data-persona-value="investor" aria-pressed="false">
+              <img src="./assets/images/persona-investor.png" alt="" />
+              <strong>IR 투자자</strong>
+              <span>보다 현실적인 질문과 피드백을 제공</span>
+            </button>
+          </div>
         </div>
         <div class="flow-nav">
           <button class="flow-button" type="button" data-go="setup">이전</button>
+          <button class="flow-button flow-button-primary" type="button" data-go="ready">다음</button>
+        </div>
+      </section>
+
+      <section class="flow-screen" data-screen="ready" aria-labelledby="presentation-ready-title">
+        <h1 class="flow-heading" id="presentation-ready-title">목적을 선택해주세요</h1>
+        <div class="flow-screen-body">
+          <div class="design-choice-list purpose-list" role="radiogroup" aria-label="발표 코칭 방식">
+          <button class="design-choice-card is-selected" type="button" data-presentation-branch="script" aria-pressed="true">
+            <span class="sprite-icon purpose-script"><img src="./assets/images/presentation-purpose-sprite.png" alt="" /></span>
+            <span><strong>발표 대본 수정</strong><small>원고의 흐름, 표현, 논리 구조, 시간 배분을 다듬고 싶어요</small></span>
+          </button>
+          <button class="design-choice-card" type="button" data-presentation-branch="practice" aria-pressed="false">
+            <span class="sprite-icon purpose-practice"><img src="./assets/images/presentation-purpose-sprite.png" alt="" /></span>
+            <span><strong>실제 발표 연습</strong><small>발음, 속도, 강약, 전달력을 직접 연습하며 개선하고 싶어요</small></span>
+          </button>
+          </div>
+        </div>
+        <div class="flow-nav">
+          <button class="flow-button" type="button" data-go="persona">이전</button>
           <button class="flow-button flow-button-primary" id="presentation-branch-next" type="button">다음</button>
         </div>
       </section>
@@ -264,8 +311,11 @@
       </section>
 
       <section class="flow-screen" data-screen="loading" aria-labelledby="presentation-loading-title">
-        <h1 class="flow-heading" id="presentation-loading-title">AI가 내용을 분석하고 있어요</h1>
-        <div class="loading-card"><span class="loading-spinner" aria-hidden="true"></span></div>
+        <h1 class="flow-heading" id="presentation-loading-title">AI가 분석하고 있어요</h1>
+        <div class="loading-figure">
+          <img src="./assets/images/analysis-mascot.png" alt="분석 중인 PITA 캐릭터" />
+          <img class="loading-dots" src="./assets/images/loading-dots.svg" alt="" />
+        </div>
       </section>
 
       <section class="flow-screen" data-screen="report" aria-labelledby="presentation-report-title">

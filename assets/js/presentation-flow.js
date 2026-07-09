@@ -13,7 +13,11 @@ const presentationStatusBadge = document.getElementById("status-badge");
 const presentationReportContent = document.getElementById("report-content");
 const presentationDocumentInput = document.getElementById("presentation-document-input");
 const presentationDocumentState = document.getElementById("presentation-document-state");
+const presentationFileList = document.getElementById("presentation-file-list");
+const presentationUploadBox = document.querySelector('[data-screen="upload"] .upload-box');
 const presentationScriptText = document.getElementById("script-text");
+const presentationTypeButtons = [...document.querySelectorAll("[data-type-value]")];
+const presentationPersonaButtons = [...document.querySelectorAll("[data-persona-value]")];
 
 let presentationBranch = "script";
 let presentationCheckStream = null;
@@ -56,6 +60,38 @@ function updatePresentationSetup() {
 presentationType.addEventListener("change", updatePresentationSetup);
 presentationPurpose.addEventListener("change", updatePresentationSetup);
 
+function selectDesignOption(buttons, selectedButton, select, value) {
+  select.value = value;
+  buttons.forEach((button) => {
+    const selected = button === selectedButton;
+    button.classList.toggle("is-selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+presentationTypeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    selectDesignOption(
+      presentationTypeButtons,
+      button,
+      presentationType,
+      button.dataset.typeValue,
+    );
+  });
+});
+
+presentationPersonaButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    selectDesignOption(
+      presentationPersonaButtons,
+      button,
+      presentationPurpose,
+      button.dataset.personaValue,
+    );
+  });
+});
+
 presentationBranchButtons.forEach((button) => {
   button.addEventListener("click", () => {
     presentationBranch = button.dataset.presentationBranch;
@@ -78,10 +114,12 @@ document.getElementById("presentation-document-trigger").addEventListener("click
 });
 
 presentationDocumentInput.addEventListener("change", async () => {
-  const file = presentationDocumentInput.files?.[0];
+  const files = [...(presentationDocumentInput.files || [])];
+  const file = files[0];
   if (!file) return;
 
-  presentationDocumentState.textContent = `${file.name} · 파일을 확인하고 있어요.`;
+  renderPresentationFiles(files);
+  presentationDocumentState.textContent = `${files.length}개 파일을 확인하고 있어요.`;
   presentationDocumentState.classList.add("is-ready");
 
   try {
@@ -107,14 +145,71 @@ presentationDocumentInput.addEventListener("change", async () => {
     if (text.trim()) {
       presentationScriptText.value = text.trim();
       presentationScriptText.dispatchEvent(new Event("input", { bubbles: true }));
-      presentationDocumentState.textContent = `${file.name} · 대본 초안을 불러왔어요.`;
+      presentationDocumentState.textContent = `${files.length}개 첨부 · 대본 초안을 불러왔어요.`;
     } else {
-      presentationDocumentState.textContent = `${file.name} · 첨부 완료`;
+      presentationDocumentState.textContent = `${files.length}개 파일 · 첨부 완료`;
     }
   } catch (error) {
-    presentationDocumentState.textContent = `${file.name} · 첨부 완료 (대본은 직접 입력해주세요)`;
+    presentationDocumentState.textContent = `${files.length}개 파일 · 첨부 완료 (대본은 직접 입력해주세요)`;
   }
 });
+
+function renderPresentationFiles(files) {
+  presentationFileList.hidden = files.length === 0;
+  presentationUploadBox.hidden = files.length > 0;
+  presentationFileList.innerHTML = files
+    .map((file, index) => {
+      const extension = file.name.split(".").pop()?.toLowerCase();
+      const isDocument = ["doc", "docx", "txt", "md"].includes(extension);
+      const label = index === 0 ? "발표 자료" : index === 1 ? "추가 자료" : "발표 대본";
+      const icon = isDocument ? "icon-article.svg" : "icon-link.svg";
+      return `
+        <section class="uploaded-file-group">
+          <h3>${label}</h3>
+          <div class="uploaded-file-row">
+            <span><img src="./assets/images/${icon}" alt="" />${escapePresentationHtml(file.name)}</span>
+            <button type="button" data-remove-file="${index}" aria-label="${escapePresentationHtml(file.name)} 삭제">
+              <img src="./assets/images/icon-cancel.svg" alt="" />
+            </button>
+          </div>
+        </section>
+      `;
+    })
+    .join("");
+
+  const addButton = document.createElement("button");
+  addButton.className = "upload-more";
+  addButton.type = "button";
+  addButton.textContent = "파일 다시 선택";
+  addButton.addEventListener("click", () => presentationDocumentInput.click());
+  presentationFileList.appendChild(addButton);
+
+  presentationFileList.querySelectorAll("[data-remove-file]").forEach((button) => {
+    button.addEventListener("click", () => removePresentationFile(Number(button.dataset.removeFile)));
+  });
+}
+
+function removePresentationFile(index) {
+  const transfer = new DataTransfer();
+  [...presentationDocumentInput.files].forEach((file, fileIndex) => {
+    if (fileIndex !== index) transfer.items.add(file);
+  });
+  presentationDocumentInput.files = transfer.files;
+  const remainingFiles = [...transfer.files];
+  renderPresentationFiles(remainingFiles);
+  presentationDocumentState.textContent = remainingFiles.length
+    ? `${remainingFiles.length}개 파일 · 첨부 완료`
+    : "선택된 파일이 없습니다.";
+}
+
+function escapePresentationHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 function fileToBase64ForPresentation(file) {
   return new Promise((resolve, reject) => {

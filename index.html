@@ -3,25 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Presentation Coach</title>
+    <title>PITA · AI Presentation Coach</title>
     <link rel="stylesheet" href="./assets/css/app.css" />
   </head>
   <body class="flow-app home-app">
     <main class="flow-shell home-screen" aria-labelledby="page-title">
-      <a class="flow-logo" href="./index.html">LOGO</a>
+      <a class="flow-logo" href="./index.html" aria-label="PITA 홈">PITA</a>
 
       <section class="home-content">
         <h1 id="page-title">모드를 선택해주세요.</h1>
 
         <div class="mode-grid" role="radiogroup" aria-label="코칭 모드 선택">
           <button class="mode-card is-selected" type="button" data-mode="presentation" aria-pressed="true">
-            <span class="mode-card-icon" aria-hidden="true">P</span>
+            <img src="./assets/images/mode-presentation.png" alt="" />
             <strong>발표 코칭</strong>
             <span>피드백을 중심으로 프레젠테이션을 준비해요</span>
           </button>
 
           <button class="mode-card" type="button" data-mode="interview" aria-pressed="false">
-            <span class="mode-card-icon" aria-hidden="true">I</span>
+            <img src="./assets/images/mode-interview.png" alt="" />
             <strong>면접 코칭</strong>
             <span>예상 질문을 중심으로 미리 면접 답변을 준비해요</span>
           </button>
