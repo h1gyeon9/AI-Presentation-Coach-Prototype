@@ -7,6 +7,13 @@ const interviewPersonaSelect = document.getElementById("personaInput");
 const interviewReportButton = document.getElementById("reportButton");
 const interviewReportContent = document.getElementById("reportContent");
 const interviewResumeFile = document.getElementById("resumeFile");
+const interviewUploadBox = document.querySelector('[data-screen="interview-upload"] .upload-box');
+const interviewFileNameState = document.getElementById("fileName");
+const interviewFileList = document.getElementById("interview-file-list");
+const interviewFileName = document.getElementById("interview-file-name");
+const interviewFileRemove = document.getElementById("interview-file-remove");
+const interviewRoleInput = document.getElementById("roleInput");
+const interviewRolePresetButtons = [...document.querySelectorAll("[data-role-preset]")];
 
 let interviewBranch = "questions";
 let interviewCheckStream = null;
@@ -31,9 +38,55 @@ document.querySelectorAll("[data-go]").forEach((button) => {
   button.addEventListener("click", () => showInterviewScreen(button.dataset.go));
 });
 
-interviewResumeFile.addEventListener("change", () => {
-  document.getElementById("fileName").classList.toggle("is-ready", Boolean(interviewResumeFile.files?.[0]));
+function hasInterviewFileState() {
+  const stateText = interviewFileNameState.textContent.trim();
+  return Boolean(interviewResumeFile.files?.[0]) && !stateText.includes("선택된 파일");
+}
+
+function syncInterviewFileCard() {
+  const hasFile = hasInterviewFileState();
+  interviewFileNameState.classList.toggle("is-ready", hasFile);
+  interviewUploadBox.hidden = hasFile;
+  interviewFileList.hidden = !hasFile;
+  if (hasFile) {
+    interviewFileName.textContent =
+      interviewFileNameState.textContent.trim() || interviewResumeFile.files[0].name;
+  }
+}
+
+interviewResumeFile.addEventListener("change", syncInterviewFileCard);
+
+new MutationObserver(syncInterviewFileCard).observe(interviewFileNameState, {
+  childList: true,
+  characterData: true,
+  subtree: true,
 });
+
+interviewFileRemove.addEventListener("click", () => {
+  interviewResumeFile.value = "";
+  interviewFileNameState.textContent = "선택된 파일이 없습니다.";
+  interviewResumeFile.dispatchEvent(new Event("change", { bubbles: true }));
+});
+
+function syncRolePresetSelection() {
+  const value = interviewRoleInput.value.trim();
+  interviewRolePresetButtons.forEach((button) => {
+    button.classList.toggle("is-selected", button.dataset.rolePreset === value);
+  });
+}
+
+interviewRolePresetButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    interviewRoleInput.value = button.dataset.rolePreset;
+    interviewRoleInput.dispatchEvent(new Event("input", { bubbles: true }));
+    interviewRoleInput.dispatchEvent(new Event("change", { bubbles: true }));
+    syncRolePresetSelection();
+  });
+});
+
+interviewRoleInput.addEventListener("input", syncRolePresetSelection);
+syncInterviewFileCard();
+syncRolePresetSelection();
 
 interviewTypeSelect.addEventListener("change", () => {
   interviewSetupNext.disabled = !interviewTypeSelect.value;

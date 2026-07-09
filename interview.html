@@ -8,7 +8,7 @@
   </head>
   <body class="flow-app interview-app">
     <main class="flow-shell">
-      <a class="flow-logo" href="./index.html">LOGO</a>
+      <a class="flow-logo" href="./index.html" aria-label="PITA">PITA</a>
 
       <div class="flow-status" id="connectionPill">
         <span class="status-dot" aria-hidden="true"></span>
@@ -29,6 +29,18 @@
             <p class="upload-state" id="fileName">선택된 파일이 없습니다.</p>
             <p>자세하게 작성된 내용일수록 정확도가 올라가요 UP</p>
             <input id="resumeFile" type="file" accept=".txt,.md,.pdf,.docx" hidden />
+          </div>
+          <div class="interview-uploaded-files" id="interview-file-list" hidden>
+            <div class="uploaded-file-row">
+              <span><img src="./assets/images/icon-link.svg" alt="" /><span id="interview-file-name">선택된 파일이 없습니다.</span></span>
+              <button type="button" id="interview-file-remove" aria-label="첨부 파일 삭제">
+                <img src="./assets/images/icon-cancel.svg" alt="" />
+              </button>
+            </div>
+            <label class="consent-row" for="privacy-consent">
+              <input id="privacy-consent" type="checkbox" />
+              <span>개인정보 수집 및 이용 선택 동의</span>
+            </label>
           </div>
         </div>
         <div class="flow-nav">
@@ -58,16 +70,25 @@
               <option value="영업"></option>
             </datalist>
           </label>
+          <div class="role-preset-grid" aria-label="직무 유형 빠른 선택">
+            <button type="button" data-role-preset="기획">기획</button>
+            <button type="button" data-role-preset="개발">개발</button>
+            <button type="button" data-role-preset="디자인">디자인</button>
+            <button type="button" data-role-preset="마케팅">마케팅</button>
+          </div>
 
-          <label class="flow-field" for="companyInput">
-            <span>지원 회사</span>
-            <input class="flow-input" id="companyInput" type="text" value="모빌리티 스타트업" />
-          </label>
+          <details class="interview-extra-panel">
+            <summary>지원 회사와 평가 기준 추가 입력</summary>
+            <label class="flow-field" for="companyInput">
+              <span>지원 회사</span>
+              <input class="flow-input" id="companyInput" type="text" value="모빌리티 스타트업" />
+            </label>
 
-          <label class="flow-field" for="talentInput">
-            <span>인재상·평가 기준</span>
-            <textarea class="flow-textarea compact" id="talentInput">고객 문제를 집요하게 정의하고, 데이터로 가설을 검증하며, 논리적이고 명확하게 소통하는 사람</textarea>
-          </label>
+            <label class="flow-field" for="talentInput">
+              <span>인재상·평가 기준</span>
+              <textarea class="flow-textarea compact" id="talentInput">고객 문제를 집요하게 정의하고, 데이터로 가설을 검증하며, 논리적이고 명확하게 소통하는 사람</textarea>
+            </label>
+          </details>
         </div>
         <div class="flow-nav">
           <button class="flow-button" type="button" data-go="interview-upload">이전</button>
@@ -102,20 +123,23 @@
             </div>
           </div>
 
-          <label class="flow-field" for="personaInput">
-            <span>가상 면접관</span>
-            <select class="flow-select" id="personaInput">
-              <option value="calm">차분한 구조화 면접관</option>
-              <option value="pressure">압박형 꼬리질문 면접관</option>
-              <option value="behavior">경험 검증형 면접관</option>
-              <option value="job">직무 적합성 중심 면접관</option>
-            </select>
-          </label>
+          <details class="interview-extra-panel">
+            <summary>면접관 성향과 꼬리질문 강도 설정</summary>
+            <label class="flow-field" for="personaInput">
+              <span>가상 면접관</span>
+              <select class="flow-select" id="personaInput">
+                <option value="calm">차분한 구조화 면접관</option>
+                <option value="pressure">압박형 꼬리질문 면접관</option>
+                <option value="behavior">경험 검증형 면접관</option>
+                <option value="job">직무 적합성 중심 면접관</option>
+              </select>
+            </label>
 
-          <div class="flow-field">
-            <span>꼬리질문 강도 <output id="depthOutput" for="depthInput">3</output></span>
-            <input id="depthInput" type="range" min="1" max="5" value="3" />
-          </div>
+            <div class="flow-field">
+              <span>꼬리질문 강도 <output id="depthOutput" for="depthInput">3</output></span>
+              <input id="depthInput" type="range" min="1" max="5" value="3" />
+            </div>
+          </details>
         </div>
         <div class="flow-nav">
           <button class="flow-button" type="button" data-go="interview-job">이전</button>
@@ -125,7 +149,10 @@
 
       <section class="flow-screen" data-screen="questions-loading" aria-labelledby="questions-loading-title">
         <h1 class="flow-heading" id="questions-loading-title">AI가 내용을 분석하고 있어요</h1>
-        <div class="loading-card"><span class="loading-spinner" aria-hidden="true"></span></div>
+        <div class="loading-figure">
+          <img src="./assets/images/analysis-mascot.png" alt="분석 중인 PITA 캐릭터" />
+          <img class="loading-dots" src="./assets/images/loading-dots.svg" alt="" />
+        </div>
       </section>
 
       <section class="flow-screen" data-screen="questions-report" aria-labelledby="questions-report-title">
@@ -259,7 +286,10 @@
 
       <section class="flow-screen" data-screen="interview-loading" aria-labelledby="interview-loading-title">
         <h1 class="flow-heading" id="interview-loading-title">AI가 면접 내용을 분석하고 있어요</h1>
-        <div class="loading-card"><span class="loading-spinner" aria-hidden="true"></span></div>
+        <div class="loading-figure">
+          <img src="./assets/images/analysis-mascot.png" alt="분석 중인 PITA 캐릭터" />
+          <img class="loading-dots" src="./assets/images/loading-dots.svg" alt="" />
+        </div>
         <p class="calibration-copy" id="interview-loading-status">카메라 영상 샘플을 정리하고 있어요.</p>
       </section>
 
