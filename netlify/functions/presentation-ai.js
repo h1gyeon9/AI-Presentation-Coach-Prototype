@@ -263,12 +263,8 @@ function buildGeminiRequest(task, payload) {
     generationConfig: {
       temperature: task === "report" ? 0.25 : 0.45,
       thinkingConfig: { thinkingBudget: 0 },
-      responseFormat: {
-        text: {
-          mimeType: "application/json",
-          schema: config.schema,
-        },
-      },
+      responseMimeType: "application/json",
+      responseSchema: config.schema,
     },
   };
 }
