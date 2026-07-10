@@ -338,6 +338,7 @@
             <span>${escapeHtml(model.sessionBadge || "")}</span>
           </div>
         </div>
+        <nav class="rd-mobile-tabs">${navHtml}</nav>
         <div class="rd-content">
           ${tabs.map((tab) => renderView(tab, model, defaultTab)).join("")}
         </div>

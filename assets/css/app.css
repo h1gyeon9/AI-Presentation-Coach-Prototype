@@ -2908,6 +2908,11 @@ body.report-dashboard-active .flow-status {
   display: none !important;
 }
 
+body.report-dashboard-active,
+body.report-dashboard-active .flow-shell {
+  background: #0d0d0d;
+}
+
 /* ===========================================================
    REPORT DASHBOARD (Figma "PITA 종합 레포트" node-id 120:765)
    Scoped entirely under .report-dashboard so it does not leak
@@ -2929,13 +2934,11 @@ body.report-dashboard-active .flow-status {
   --rd-text: #f5f5f5;
   --rd-muted: #8a8a8a;
 
-  position: relative;
-  left: 50%;
-  width: 100vw;
-  margin: -1px 0 -80px -50vw;
+  width: 100%;
+  margin: -1px 0 -80px;
   display: flex;
   align-items: stretch;
-  min-height: 960px;
+  min-height: 100vh;
   background: var(--rd-bg);
   color: var(--rd-text);
   font-family: "Pretendard", Inter, "Noto Sans KR", system-ui, sans-serif;
@@ -3775,9 +3778,29 @@ body.report-dashboard-active .flow-status {
   }
 }
 
+.rd-mobile-tabs {
+  display: none;
+}
+
 @media (max-width: 760px) {
   .rd-sidebar {
     display: none;
+  }
+
+  .rd-mobile-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    flex-shrink: 0;
+    padding: 10px 12px;
+    background: var(--rd-sidebar);
+    border-bottom: 1px solid var(--rd-border);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .rd-mobile-tabs .rd-nav-item {
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .rd-row {
@@ -3792,6 +3815,7 @@ body.report-dashboard-active .flow-status {
 @media print {
   .rd-sidebar,
   .rd-topbar,
+  .rd-mobile-tabs,
   .rd-action-bar,
   .rd-nav {
     display: none !important;
