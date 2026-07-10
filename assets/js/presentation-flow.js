@@ -433,6 +433,19 @@ document.getElementById("reset-report-btn").addEventListener("click", () => {
   showPresentationScreen("ready");
 });
 
+document.getElementById("continue-practice-btn").addEventListener("click", () => {
+  presentationBranch = "practice";
+  presentationModeSelect.value = "record";
+  presentationModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  presentationBranchButtons.forEach((button) => {
+    const selected = button.dataset.presentationBranch === "practice";
+    button.classList.toggle("is-selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+  presentationBranchNext.disabled = false;
+  showPresentationScreen("environment");
+});
+
 window.addEventListener("beforeunload", () => {
   presentationCheckStream?.getTracks().forEach((track) => track.stop());
   stopPresentationCalibration();

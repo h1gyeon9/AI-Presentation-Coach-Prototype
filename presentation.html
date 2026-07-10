@@ -315,7 +315,11 @@
         <h1 class="flow-heading" id="presentation-loading-title">AI가 분석하고 있어요</h1>
         <div class="loading-figure">
           <img src="./assets/images/analysis-mascot.png" alt="분석 중인 PITA 캐릭터" />
-          <img class="loading-dots" src="./assets/images/loading-dots.svg" alt="" />
+          <div class="loading-dots" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
         </div>
       </section>
 
@@ -338,10 +342,13 @@
               </div>
             </section>
             <dl id="print-meta" class="report-meta-footer" hidden></dl>
+            <div class="report-pdf-action">
+              <button class="primary" id="export-pdf-btn" type="button">PDF로 저장</button>
+            </div>
           </div>
-          <div class="report-actions-flow">
-            <button class="primary" id="export-pdf-btn" type="button">PDF로 저장</button>
-            <button id="reset-report-btn" type="button">처음부터 다시</button>
+          <div class="report-nav-actions">
+            <button id="reset-report-btn" type="button">처음으로</button>
+            <button class="primary" id="continue-practice-btn" type="button">발표 연습 이어가기</button>
           </div>
         </div>
       </section>
