@@ -2049,6 +2049,10 @@ textarea:focus-visible {
   height: 420px;
 }
 
+.interview-app [data-screen="interview-practice"] .camera-stage-flow {
+  height: 520px;
+}
+
 .presentation-app .metric-row-flow,
 .interview-app .metric-row-flow,
 .presentation-app .event-log-flow,
@@ -2825,6 +2829,10 @@ textarea:focus-visible {
     width: 100%;
     height: auto;
     aspect-ratio: 16 / 9;
+  }
+
+  .interview-app [data-screen="interview-practice"] .camera-stage-flow {
+    aspect-ratio: 4 / 3;
   }
 
   .presentation-app .check-actions,
