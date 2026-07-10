@@ -294,25 +294,12 @@
       </section>
 
       <section class="flow-screen" data-screen="interview-report" aria-labelledby="interview-report-title">
-        <h1 class="flow-heading" id="interview-report-title">분석을 완료했어요</h1>
-        <div class="flow-report">
-          <div class="report-meta-row">
-            <strong>1번 말</strong>
-            <span id="interview-report-persona">차분한 구조화 면접관</span>
-          </div>
-          <div class="report-card-flow">
-            <div id="apiNotice" hidden></div>
-            <div id="reportContent">
-              <div class="empty-state">답변을 한 번 이상 전송하면 리포트를 만들 수 있습니다.</div>
-            </div>
-          </div>
-          <div class="report-actions-flow">
-            <button class="primary" id="downloadReportButton" type="button" disabled>PDF 저장</button>
-            <button id="shareReportButton" type="button" disabled>링크 공유</button>
-            <button id="retryButton" type="button" hidden>AI 재시도</button>
-            <button id="interview-restart" type="button">처음부터 다시</button>
-          </div>
-        </div>
+        <h1 class="sr-only" id="interview-report-title">분석을 완료했어요</h1>
+        <div id="apiNotice" hidden></div>
+        <button id="retryButton" type="button" hidden>AI 재시도</button>
+        <div id="report-dashboard-root"></div>
+        <button id="shareReportButton" type="button" hidden disabled>링크 공유</button>
+        <button id="interview-restart" type="button" hidden>처음부터 다시</button>
       </section>
     </main>
 

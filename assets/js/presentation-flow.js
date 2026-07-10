@@ -10,8 +10,6 @@ const presentationBranchNext = document.getElementById("presentation-branch-next
 const presentationGenerateButton = document.getElementById("generate-report-btn");
 const presentationScriptAction = document.getElementById("script-analysis-action");
 const presentationPracticeAction = document.getElementById("practice-analysis-action");
-const presentationStatusBadge = document.getElementById("status-badge");
-const presentationReportContent = document.getElementById("report-content");
 const presentationDocumentInput = document.getElementById("presentation-document-input");
 const presentationDocumentState = document.getElementById("presentation-document-state");
 const presentationFileList = document.getElementById("presentation-file-list");
@@ -32,6 +30,8 @@ function showPresentationScreen(name) {
   presentationScreens.forEach((screen) => {
     screen.classList.toggle("is-active", screen.dataset.screen === name);
   });
+
+  document.body.classList.toggle("report-dashboard-active", name === "report");
 
   if (name !== "calibration") {
     stopPresentationCalibration();
@@ -405,46 +405,6 @@ function stopPresentationCalibration() {
   const video = document.getElementById("presentation-calibration-video");
   if (video) video.srcObject = null;
 }
-
-const presentationStatusObserver = new MutationObserver(() => {
-  if (presentationStatusBadge.classList.contains("done")) {
-    const typeLabel = presentationType.selectedOptions[0]?.textContent || "발표";
-    const purposeLabel = presentationPurpose.selectedOptions[0]?.textContent || "발표 목적";
-    document.getElementById("presentation-report-type").textContent = typeLabel;
-    document.getElementById("presentation-report-purpose").textContent =
-      `${purposeLabel}에 맞춘 발표 리포트`;
-    showPresentationScreen("report");
-  } else if (
-    document.querySelector('[data-screen="loading"]').classList.contains("is-active") &&
-    !presentationStatusBadge.classList.contains("busy") &&
-    !presentationReportContent.textContent.includes("분석 중")
-  ) {
-    showPresentationScreen("report");
-  }
-});
-
-presentationStatusObserver.observe(presentationStatusBadge, {
-  attributes: true,
-  childList: true,
-  subtree: true,
-});
-
-document.getElementById("reset-report-btn").addEventListener("click", () => {
-  showPresentationScreen("ready");
-});
-
-document.getElementById("continue-practice-btn").addEventListener("click", () => {
-  presentationBranch = "practice";
-  presentationModeSelect.value = "record";
-  presentationModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
-  presentationBranchButtons.forEach((button) => {
-    const selected = button.dataset.presentationBranch === "practice";
-    button.classList.toggle("is-selected", selected);
-    button.setAttribute("aria-pressed", String(selected));
-  });
-  presentationBranchNext.disabled = false;
-  showPresentationScreen("environment");
-});
 
 window.addEventListener("beforeunload", () => {
   presentationCheckStream?.getTracks().forEach((track) => track.stop());

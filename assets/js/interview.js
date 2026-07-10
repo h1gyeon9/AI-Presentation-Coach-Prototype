@@ -113,11 +113,10 @@ const elements = {
   sendButton: $("#sendButton"),
   reportButton: $("#reportButton"),
   retryButton: $("#retryButton"),
-  downloadReportButton: $("#downloadReportButton"),
   shareReportButton: $("#shareReportButton"),
   resetButton: $("#resetButton"),
   apiNotice: $("#apiNotice"),
-  reportContent: $("#reportContent"),
+  reportDashboardRoot: $("#report-dashboard-root"),
   loadingStatus: $("#interview-loading-status"),
   personaSummary: $("#personaSummary"),
   turnMetric: $("#turnMetric"),
@@ -159,6 +158,13 @@ function formatDuration(ms) {
   return `${minutes}분 ${rest}초`;
 }
 
+function clearReportDashboard() {
+  elements.reportDashboardRoot.classList.remove("report-dashboard");
+  elements.reportDashboardRoot.innerHTML = `
+    <p class="rd-empty-note" style="margin:40px;">답변을 한 번 이상 전송하면 리포트를 만들 수 있습니다.</p>
+  `;
+}
+
 function getReadableError(error) {
   if (error?.name === "AbortError" || error?.code === "TIMEOUT") {
     return "AI 응답 시간이 초과되었습니다. 네트워크 상태를 확인한 뒤 재시도해 주세요.";
@@ -191,7 +197,6 @@ function hideApiNotice() {
 }
 
 function setReportActionsEnabled(enabled) {
-  elements.downloadReportButton.disabled = !enabled;
   elements.shareReportButton.disabled = !enabled;
 }
 
@@ -1294,9 +1299,7 @@ async function startInterview() {
   state.lastReport = null;
   state.activeReportTab = "language";
   elements.chatLog.innerHTML = "";
-  elements.reportContent.innerHTML = `
-    <div class="empty-state">답변을 한 번 이상 전송하면 리포트를 만들 수 있습니다.</div>
-  `;
+  clearReportDashboard();
   hideApiNotice();
   setReportActionsEnabled(false);
   elements.answerInput.value = "";
@@ -1499,207 +1502,143 @@ function analyzeAnswers() {
   };
 }
 
-function localReportHtml(analysis, aiReport = null) {
-  const active = state.activeReportTab || "language";
-  const tabClass = (name) => (active === name ? "is-active" : "");
-  const panelAttrs = (name) =>
-    `class="report-tab-panel ${tabClass(name)}" data-report-panel="${name}" role="tabpanel"`;
-  const list = (items, fallback) =>
-    items?.length ? items.map((item) => `<li>${escapeHtml(item)}</li>`).join("") : `<li>${fallback}</li>`;
-  const badges = (items, fallback) =>
-    items?.length
-      ? items.map((item) => `<span class="badge">${escapeHtml(item.label)} ${item.count}회</span>`).join("")
-      : `<span class="badge">${fallback}</span>`;
+function buildInterviewReportModel(analysis, aiReport) {
+  const overall = Math.round(
+    average([analysis.structureScore || 0, analysis.deliveryScore || 0, analysis.specificityScore || 0]),
+  );
+  const nonverbal = analyzeNonverbal();
+  const nonverbalAvg = (key) => (nonverbal?.averages?.[key] ? Math.round(nonverbal.averages[key]) : 0);
+  const nonverbalOverall = nonverbal ? Math.round(nonverbal.score) : 0;
+  const hasAiNonverbal = Boolean(aiReport?.nonverbalFeedback?.length);
+  const hasVideo = Boolean(state.nonverbalVideoBlob?.size);
+  const dateLabel = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+  const personaLabel = document.getElementById("personaInput")?.selectedOptions?.[0]?.textContent || "가상 면접관";
+  const emojiIndex = overall >= 80 ? 1 : overall >= 60 ? 3 : overall >= 40 ? 0 : 2;
+  const improvementTexts = aiReport?.improvements?.length
+    ? aiReport.improvements
+    : aiReport?.contentFeedback?.length
+      ? aiReport.contentFeedback
+      : [];
+  const radarLabels = ["논리성", "전달력", "구체성", "시선처리", "자세", "표정"];
+  const radarMine = [
+    analysis.structureScore || 0,
+    analysis.deliveryScore || 0,
+    analysis.specificityScore || 0,
+    nonverbalAvg("eye"),
+    nonverbalAvg("posture"),
+    nonverbalAvg("expression"),
+  ];
+  const radarAvg = [62, 62, 62, 62, 62, 62];
 
-  const silenceItems = analysis.silenceEvents?.length
-    ? analysis.silenceEvents.map(
-        (event, index) =>
-          `${index + 1}번째 침묵: ${event.seconds}초 이상 대기 후 안내 표시`,
-      )
-    : [];
-  const scriptItems = state.messages
-    .map(
-      (message, index) => `
-        <li class="script-item">
-          <b>${index + 1}. ${message.role === "ai" ? "면접관 질문" : "지원자 답변"}</b>
-          <p>${escapeHtml(message.text)}</p>
-        </li>
-      `,
-    )
-    .join("");
-  const evaluationItems = analysis.questionEvaluations
-    .map(
-      (item) => `
-        <li>
-          ${item.index}번 답변 논리 구조 ${item.score}점:
-          ${item.feedback.map(escapeHtml).join(" ")}
-        </li>
-      `,
-    )
-    .join("");
-  const mappingBadges = analysis.jobFitMappings
-    .map(
-      (item) =>
-        `<span class="badge">${escapeHtml(item.keyword)} ${item.matched ? "언급" : "미언급"}</span>`,
-    )
-    .join("");
-  const followUpItems = (aiReport?.followUpQuestions || [])
-    .map(
-      (item) => `
-        <li>
-          <b>${escapeHtml(item.question || "예상 꼬리질문")}</b>
-          <p>질문 의도 · ${escapeHtml(item.intent || "답변을 더 구체적으로 검증")}</p>
-          <p>답변 포인트 · ${(item.suggestedAnswerPoints || []).map(escapeHtml).join(", ") || "관련 경험과 근거를 준비하세요."}</p>
-        </li>
-      `,
-    )
-    .join("");
-  const nonverbalAnalysis = analyzeNonverbal();
-  const localNonverbalItems = nonverbalAnalysis?.observations?.length
-    ? nonverbalAnalysis.observations
-    : [];
-  const localNonverbalSummary = nonverbalAnalysis
-    ? `로컬 시뮬레이션 기준 종합 ${nonverbalAnalysis.score}점 · 가장 보완할 항목은 ${nonverbalAnalysis.weakest}입니다.`
-    : "카메라를 켜고 면접을 진행하면 로컬 비언어 신호 요약이 표시됩니다.";
-  const nonverbalVideoIssue = state.nonverbalVideoIssue || "영상 샘플이 요청에 첨부되지 않았습니다.";
-  return `
-    <div class="report-tabs" role="tablist" aria-label="리포트 분류">
-      <button class="report-tab ${tabClass("language")}" type="button" data-report-tab="language" role="tab" aria-selected="${active === "language"}">언어 습관</button>
-      <button class="report-tab ${tabClass("content")}" type="button" data-report-tab="content" role="tab" aria-selected="${active === "content"}">내용</button>
-      <button class="report-tab ${tabClass("nonverbal")}" type="button" data-report-tab="nonverbal" role="tab" aria-selected="${active === "nonverbal"}">비언어</button>
-    </div>
-
-    <section ${panelAttrs("language")}>
-      <section class="report-block">
-        <h3>언어 습관 요약</h3>
-        <div class="score-grid">
-          <div class="score"><b>${analysis.deliveryScore}</b><span>전달 안정감</span></div>
-          <div class="score"><b>${formatDuration(analysis.avgAnswerTimeMs)}</b><span>평균 답변 시간</span></div>
-          <div class="score"><b>${formatDuration(analysis.avgLatencyMs)}</b><span>평균 준비 시간</span></div>
-        </div>
-      </section>
-      <section class="report-block">
-        <h3>추임새 Top 3</h3>
-        <div class="badge-row">${badges(analysis.topFillers, "감지된 추임새 적음")}</div>
-      </section>
-      <section class="report-block">
-        <h3>반복 표현 Top 5</h3>
-        <div class="badge-row">${badges(analysis.repeatedExpressions, "반복 표현 적음")}</div>
-      </section>
-      <section class="report-block">
-        <h3>침묵 및 휴지 구간</h3>
-        <ul>${list(silenceItems, "10초 이상 장시간 침묵은 감지되지 않았습니다.")}</ul>
-      </section>
-      ${
-        aiReport?.languageHabits?.length
-          ? `
-            <section class="report-block">
-              <h3>AI 언어 습관 피드백</h3>
-              <ul>${list(aiReport.languageHabits, "언어 습관 피드백이 없습니다.")}</ul>
-            </section>
-          `
-          : ""
-      }
-    </section>
-
-    <section ${panelAttrs("content")}>
-      <section class="report-block">
-        <h3>내용 점수</h3>
-        <div class="score-grid">
-          <div class="score"><b>${analysis.structureScore}</b><span>논리 구조</span></div>
-          <div class="score"><b>${analysis.specificityScore}</b><span>구체성</span></div>
-          <div class="score"><b>${analysis.wordCount}</b><span>답변 단어 수</span></div>
-        </div>
-      </section>
-      <section class="report-block">
-        <h3>전체 대화 스크립트</h3>
-        <ul class="script-list">${scriptItems || '<li class="script-item"><p>대화 기록이 없습니다.</p></li>'}</ul>
-      </section>
-      <section class="report-block">
-        <h3>질문별 논리 구조 평가</h3>
-        <ul>${evaluationItems || "<li>평가할 답변이 없습니다.</li>"}</ul>
-      </section>
-      <section class="report-block">
-        <h3>직무 적합성 및 인재상 매핑</h3>
-        <div class="badge-row">${mappingBadges || '<span class="badge">매핑 키워드 없음</span>'}</div>
-      </section>
-      ${
-        followUpItems
-          ? `
-            <section class="report-block">
-              <h3>예상 꼬리질문과 답변 포인트</h3>
-              <ul>${followUpItems}</ul>
-            </section>
-          `
-          : ""
-      }
-      <section class="report-block">
-        <h3>보완 포인트</h3>
-        <ul>${list(aiReport?.contentFeedback || aiReport?.improvements, "상황, 행동, 결과, 배운 점 순서로 답변을 더 명확히 구조화해 보세요.")}</ul>
-      </section>
-      ${
-        aiReport
-          ? `
-            <section class="report-block">
-              <h3>AI 종합 피드백</h3>
-              <p>${escapeHtml(aiReport.summary || "종합 피드백을 생성했습니다.")}</p>
-              <ul style="margin-top: 12px;">${list(aiReport.strengths, "강점 항목이 별도로 반환되지 않았습니다.")}</ul>
-            </section>
-            <section class="report-block">
-              <h3>다음 연습</h3>
-              <ul>${list(aiReport.practicePlan, "다음 연습 항목이 별도로 반환되지 않았습니다.")}</ul>
-            </section>
-          `
-          : ""
-      }
-    </section>
-
-    <section ${panelAttrs("nonverbal")}>
-      ${
-        aiReport?.nonverbalFeedback?.length
-          ? `
-            <section class="report-block">
-              <h3>AI 비언어 피드백</h3>
-              <ul>${list(aiReport.nonverbalFeedback, "비언어 피드백이 없습니다.")}</ul>
-            </section>
-          `
-          : `
-            <section class="report-block">
-              <h3>AI 비언어 피드백</h3>
-              <p>Gemini가 분석할 카메라 영상 샘플이 없어 AI 비언어 피드백은 생성되지 않았습니다. ${escapeHtml(nonverbalVideoIssue)}</p>
-            </section>
-            <section class="report-block">
-              <h3>로컬 비언어 신호 요약</h3>
-              <p>${escapeHtml(localNonverbalSummary)}</p>
-              <ul style="margin-top: 12px;">${list(localNonverbalItems, "아직 수집된 비언어 신호가 없습니다.")}</ul>
-            </section>
-          `
-      }
-    </section>
-  `;
-}
-
-function bindReportTabs() {
-  elements.reportContent.querySelectorAll("[data-report-tab]").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const target = tab.dataset.reportTab;
-      state.activeReportTab = target;
-      elements.reportContent.querySelectorAll("[data-report-tab]").forEach((item) => {
-        const isActive = item.dataset.reportTab === target;
-        item.classList.toggle("is-active", isActive);
-        item.setAttribute("aria-selected", String(isActive));
-      });
-      elements.reportContent.querySelectorAll("[data-report-panel]").forEach((panel) => {
-        panel.classList.toggle("is-active", panel.dataset.reportPanel === target);
-      });
-      persistSession();
-    });
-  });
+  return {
+    title: "면접 분석 결과",
+    meta: `${dateLabel} · ${personaLabel} · 답변 ${state.answers.length}건`,
+    userName: "김면접",
+    userSub: `${personaLabel} 코칭`,
+    sessionBadge: dateLabel,
+    defaultTab: "report",
+    tabs: [
+      { id: "report", label: "종합 레포트" },
+      { id: "ai", label: "AI 분석 상세" },
+      { id: "video", label: "영상 분석" },
+    ],
+    report: {
+      coaching: {
+        title: aiReport?.summary || "답변을 분석해 핵심 포인트를 정리했습니다",
+        activeIndex: emojiIndex,
+        body: improvementTexts[0] || (aiReport?.strengths || [])[0] || "리포트를 생성하면 코칭 포인트가 표시됩니다.",
+      },
+      voice: {
+        cardTitle: "🗣️ 답변 습관 분석",
+        seed: (analysis.wordCount || 0) + overall + 10,
+        stats: [
+          { value: formatDuration(analysis.avgAnswerTimeMs), label: "평균 답변 시간" },
+          { value: formatDuration(analysis.avgLatencyMs), label: "평균 준비 시간" },
+          { value: `${state.answers.length}건`, label: "총 답변 수" },
+        ],
+        bars: [
+          { label: "논리 구조", value: analysis.structureScore || 0, color: "#00e5e5" },
+          { label: "전달 안정감", value: analysis.deliveryScore || 0, color: "#00c9a7" },
+          { label: "구체성", value: analysis.specificityScore || 0, color: "#ffa502" },
+          { label: "추임새 억제", value: Math.max(0, 100 - (analysis.fillerRate || 0)), color: "#5352ed" },
+        ],
+      },
+      content: {
+        donutPct: overall,
+        subScores: [
+          { label: "논리 구조", score: analysis.structureScore || 0, color: "#00e5e5" },
+          { label: "구체성", score: analysis.specificityScore || 0, color: "#00c9a7" },
+          { label: "전달 안정감", score: analysis.deliveryScore || 0, color: "#ffa502" },
+        ],
+        note: aiReport?.summary || (analysis.questionEvaluations?.[0]?.feedback || []).join(" ") || "",
+      },
+      radar: {
+        labels: radarLabels,
+        mine: radarMine,
+        avg: radarAvg,
+        badges: [
+          { label: "논리성", value: analysis.structureScore || 0, color: "#00e5e5" },
+          { label: "전달력", value: analysis.deliveryScore || 0, color: "#00c9a7" },
+          { label: "구체성", value: analysis.specificityScore || 0, color: "#ffa502" },
+        ],
+        note: hasVideo ? "" : "카메라를 켜고 면접을 진행하면 시선/자세/표정 지표가 채워집니다.",
+      },
+      scoreSummary: {
+        big: overall,
+        items: [
+          { label: "내용", value: analysis.structureScore || 0, color: "#00e5e5" },
+          { label: "전달", value: analysis.deliveryScore || 0, color: "#00c9a7" },
+          { label: "구체성", value: analysis.specificityScore || 0, color: "#ffa502" },
+          { label: "태도", value: nonverbalOverall, color: "#5352ed" },
+        ],
+      },
+    },
+    ai: {
+      subtitle: "질문/답변 기반 심층 분석",
+      metrics: [
+        { label: "논리 구조", value: analysis.structureScore || 0, color: "#00e5e5" },
+        { label: "전달 안정감", value: analysis.deliveryScore || 0, color: "#00c9a7" },
+        { label: "구체성", value: analysis.specificityScore || 0, color: "#ffa502" },
+        { label: "시선 처리", value: nonverbalAvg("eye"), color: "#5352ed" },
+        { label: "자세", value: nonverbalAvg("posture"), color: "#00e5e5" },
+        { label: "표정", value: nonverbalAvg("expression"), color: "#00c9a7" },
+        { label: "제스처", value: nonverbalAvg("gesture"), color: "#ffa502" },
+      ],
+      radar: { labels: radarLabels, mine: radarMine, avg: radarAvg },
+      insights: (improvementTexts.length ? improvementTexts : aiReport?.languageHabits || [])
+        .slice(0, 5)
+        .map((text, index) => ({ title: `개선 포인트 ${index + 1}`, body: text })),
+      historyNote: null,
+    },
+    video: {
+      objectUrl: hasVideo ? URL.createObjectURL(state.nonverbalVideoBlob) : null,
+      emptyNote: hasVideo ? "" : state.nonverbalVideoIssue || "카메라 영상 샘플이 없어 영상 재생을 지원하지 않습니다.",
+      scores: [
+        { label: "시선", value: nonverbalAvg("eye"), color: "#00e5e5" },
+        { label: "자세", value: nonverbalAvg("posture"), color: "#00c9a7" },
+        { label: "표정/제스처", value: Math.round((nonverbalAvg("expression") + nonverbalAvg("gesture")) / 2), color: "#ffa502" },
+      ],
+      feedback: hasAiNonverbal
+        ? aiReport.nonverbalFeedback.map((text) => ({ text }))
+        : (nonverbal?.observations || []).map((text) => ({ text, tone: "warn" })),
+      emptyFeedbackNote: hasAiNonverbal
+        ? ""
+        : nonverbal
+          ? "로컬 시뮬레이션 기준 비언어 신호 요약입니다."
+          : "카메라를 켜고 면접을 진행하면 비언어 신호가 표시됩니다.",
+    },
+    actions: {
+      shareLabel: "공유하기",
+      resetLabel: "다시 연습하기",
+      onShare: () => elements.shareReportButton.click(),
+      onReset: () => document.getElementById("interview-restart").click(),
+    },
+  };
 }
 
 function renderReport(analysis, aiReport = null) {
-  elements.reportContent.innerHTML = localReportHtml(analysis, aiReport);
-  bindReportTabs();
+  const model = buildInterviewReportModel(analysis, aiReport);
+  window.PitaReportUI.renderDashboard(elements.reportDashboardRoot, model);
   state.lastReport = { analysis, aiReport };
   setReportActionsEnabled(true);
   persistSession();
@@ -1754,339 +1693,6 @@ async function generateReport() {
     elements.reportButton.disabled = false;
     persistSession();
   }
-}
-
-function printReportAsPdf() {
-  if (!state.lastReport) return;
-
-  document.querySelectorAll("iframe[data-report-print-frame]").forEach((frame) => frame.remove());
-
-  const printableDocument = buildPrintableReportDocument(
-    state.lastReport.analysis,
-    state.lastReport.aiReport,
-  );
-  const iframe = document.createElement("iframe");
-  iframe.title = "AI 면접 리포트 PDF";
-  iframe.dataset.reportPrintFrame = "true";
-  iframe.setAttribute("aria-hidden", "true");
-  iframe.style.position = "fixed";
-  iframe.style.left = "-10000px";
-  iframe.style.top = "0";
-  iframe.style.width = "1024px";
-  iframe.style.height = "768px";
-  iframe.style.border = "0";
-  iframe.style.opacity = "0";
-  iframe.style.pointerEvents = "none";
-
-  let printStarted = false;
-  let cleanupTimer = null;
-
-  const cleanup = () => {
-    if (cleanupTimer) {
-      window.clearTimeout(cleanupTimer);
-      cleanupTimer = null;
-    }
-    window.setTimeout(() => iframe.remove(), 500);
-  };
-
-  const startPrint = async () => {
-    if (printStarted) return;
-    const frameWindow = iframe.contentWindow;
-    const frameDocument = iframe.contentDocument;
-    if (!frameWindow || !frameDocument?.querySelector(".print-page")) return;
-    printStarted = true;
-    iframe.removeEventListener("load", startPrint);
-
-    try {
-      await frameDocument.fonts?.ready;
-    } catch (error) {
-      // Font readiness is best-effort; the report should still be printable.
-    }
-
-    window.setTimeout(() => {
-      try {
-        frameWindow.focus();
-        frameWindow.addEventListener("afterprint", cleanup, { once: true });
-        cleanupTimer = window.setTimeout(cleanup, 120000);
-        frameWindow.print();
-      } catch (error) {
-        cleanup();
-        elements.apiNotice.hidden = false;
-        elements.apiNotice.textContent =
-          "PDF 인쇄 창을 열 수 없습니다. 브라우저의 인쇄 권한을 확인한 뒤 다시 시도해 주세요.";
-      }
-    }, 100);
-  };
-
-  iframe.addEventListener("load", startPrint);
-  iframe.srcdoc = printableDocument;
-  document.body.appendChild(iframe);
-}
-
-function buildPrintableReportDocument(analysis, aiReport = null) {
-  const profile = getProfile();
-  const generatedAt = new Date().toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const resumeLabel = profile.resumeName ? profile.resumeName : "첨부 없음";
-  const reportHtml = localReportHtml(analysis, aiReport);
-
-  return `<!doctype html>
-    <html lang="ko">
-      <head>
-        <meta charset="UTF-8" />
-        <title>AI 면접 리포트</title>
-        <style>
-          :root {
-            --text: #172033;
-            --muted: #667085;
-            --line: #d9e0ea;
-            --surface: #f8fafc;
-            --green: #1f7a5b;
-            --blue: #3157c9;
-            --amber: #a76612;
-          }
-
-          * {
-            box-sizing: border-box;
-          }
-
-          body {
-            margin: 0;
-            color: var(--text);
-            background: #fff;
-            font-family: Inter, Pretendard, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          }
-
-          .print-page {
-            width: min(920px, calc(100% - 48px));
-            margin: 0 auto;
-            padding: 32px 0 44px;
-          }
-
-          .print-header {
-            padding-bottom: 20px;
-            border-bottom: 2px solid var(--text);
-          }
-
-          .kicker {
-            margin: 0 0 8px;
-            color: var(--blue);
-            font-size: 12px;
-            font-weight: 900;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-          }
-
-          h1 {
-            margin: 0;
-            font-size: 30px;
-            line-height: 1.2;
-          }
-
-          .summary {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-            margin-top: 18px;
-          }
-
-          .summary-item,
-          .score,
-          .report-block,
-          .script-item {
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            background: #fff;
-          }
-
-          .summary-item {
-            min-height: 58px;
-            padding: 10px 12px;
-          }
-
-          .summary-item span,
-          .score span {
-            display: block;
-            color: var(--muted);
-            font-size: 11px;
-            font-weight: 900;
-          }
-
-          .summary-item b,
-          .score b {
-            display: block;
-            margin-top: 4px;
-            font-size: 16px;
-          }
-
-          .report-tabs {
-            display: none;
-          }
-
-          .report-tab-panel {
-            display: grid !important;
-            gap: 12px;
-            margin-top: 24px;
-            break-before: page;
-          }
-
-          .report-tab-panel:first-of-type {
-            break-before: auto;
-          }
-
-          .report-tab-panel::before {
-            display: block;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--line);
-            font-size: 21px;
-            font-weight: 900;
-          }
-
-          .report-tab-panel[data-report-panel="language"]::before {
-            content: "언어 습관";
-          }
-
-          .report-tab-panel[data-report-panel="content"]::before {
-            content: "내용";
-          }
-
-          .report-tab-panel[data-report-panel="nonverbal"]::before {
-            content: "비언어";
-          }
-
-          .report-block {
-            padding: 14px;
-            background: var(--surface);
-            break-inside: avoid;
-          }
-
-          .report-block h3 {
-            margin: 0 0 10px;
-            font-size: 15px;
-          }
-
-          .report-block p,
-          .report-block li {
-            color: var(--muted);
-            font-size: 13px;
-            line-height: 1.58;
-          }
-
-          .report-block p {
-            margin: 0;
-          }
-
-          .report-block ul {
-            margin: 0;
-            padding-left: 18px;
-          }
-
-          .score-grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 8px;
-          }
-
-          .score {
-            min-height: 72px;
-            padding: 10px;
-            background: #fff;
-          }
-
-          .score b {
-            font-size: 20px;
-          }
-
-          .badge-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-          }
-
-          .badge {
-            display: inline-flex;
-            min-height: 28px;
-            align-items: center;
-            padding: 0 9px;
-            border: 1px solid rgba(167, 102, 18, 0.22);
-            border-radius: 8px;
-            background: rgba(167, 102, 18, 0.08);
-            color: var(--amber);
-            font-size: 11px;
-            font-weight: 900;
-          }
-
-          .script-list {
-            max-height: none !important;
-            overflow: visible !important;
-            display: grid;
-            gap: 8px;
-            margin: 0;
-            padding: 0;
-            list-style: none;
-          }
-
-          .script-item {
-            display: grid;
-            gap: 5px;
-            padding: 10px;
-            background: #fff;
-            break-inside: avoid;
-          }
-
-          .script-item b {
-            color: var(--text);
-            font-size: 12px;
-          }
-
-          .script-item p {
-            margin: 0;
-          }
-
-          .print-footer {
-            margin-top: 24px;
-            padding-top: 12px;
-            border-top: 1px solid var(--line);
-            color: var(--muted);
-            font-size: 11px;
-          }
-
-          @page {
-            margin: 14mm;
-          }
-
-          @media print {
-            .print-page {
-              width: 100%;
-              padding: 0;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <main class="print-page">
-          <header class="print-header">
-            <p class="kicker">AI Interview Coach</p>
-            <h1>면접 리포트</h1>
-            <div class="summary">
-              <div class="summary-item"><span>생성일</span><b>${escapeHtml(generatedAt)}</b></div>
-              <div class="summary-item"><span>회사 / 직무</span><b>${escapeHtml(profile.company)} · ${escapeHtml(profile.role)}</b></div>
-              <div class="summary-item"><span>면접관 유형</span><b>${escapeHtml(profile.personaLabel)}</b></div>
-              <div class="summary-item"><span>자기소개서</span><b>${escapeHtml(resumeLabel)}</b></div>
-            </div>
-          </header>
-          ${reportHtml}
-          <footer class="print-footer">
-            이 리포트는 면접 연습 기록과 AI 분석 결과를 기반으로 생성된 프로토타입 리포트입니다.
-          </footer>
-        </main>
-      </body>
-    </html>`;
 }
 
 async function shareReportLink() {
@@ -2165,9 +1771,7 @@ function resetSession() {
     ? "음성 인식 대기 중"
     : "이 브라우저는 음성 인식을 지원하지 않습니다.";
   elements.personaSummary.textContent = "설정을 완료하고 면접을 시작하세요.";
-  elements.reportContent.innerHTML = `
-    <div class="empty-state">답변을 한 번 이상 전송하면 리포트를 만들 수 있습니다.</div>
-  `;
+  clearReportDashboard();
   hideApiNotice();
   setReportActionsEnabled(false);
   setConnection("AI 대기", "blue");
@@ -2194,7 +1798,6 @@ elements.cameraButton.addEventListener("click", startCamera);
 elements.retryButton.addEventListener("click", () => {
   if (state.pendingRetry) state.pendingRetry();
 });
-elements.downloadReportButton.addEventListener("click", printReportAsPdf);
 elements.shareReportButton.addEventListener("click", shareReportLink);
 
 elements.micButton.addEventListener("click", () => {
