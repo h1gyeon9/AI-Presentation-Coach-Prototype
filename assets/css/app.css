@@ -2079,7 +2079,7 @@ textarea:focus-visible {
 
 .presentation-app .practice-panel-flow .camera-stage-flow {
   width: 100%;
-  height: 420px;
+  height: 520px;
 }
 
 .interview-app [data-screen="interview-practice"] .camera-stage-flow {
@@ -2944,6 +2944,10 @@ textarea:focus-visible {
   }
 
   .interview-app [data-screen="interview-practice"] .camera-stage-flow {
+    aspect-ratio: 4 / 3;
+  }
+
+  .presentation-app [data-screen="practice"] .camera-stage-flow {
     aspect-ratio: 4 / 3;
   }
 
