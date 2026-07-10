@@ -319,7 +319,7 @@
     container.classList.add("report-dashboard");
     container.innerHTML = `
       <aside class="rd-sidebar">
-        <div class="rd-logo">PITA</div>
+        <a class="rd-logo" href="./index.html">PITA</a>
         <div class="rd-divider"></div>
         <nav class="rd-nav">${navHtml}</nav>
         <div class="rd-sidebar-user">

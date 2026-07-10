@@ -1102,8 +1102,8 @@ textarea:focus-visible {
   color: var(--pita-cyan);
   font-family: "ChangwonDangamAsac", Impact, "Arial Black", sans-serif;
   font-size: 48px;
-  font-weight: 900;
-  letter-spacing: 0;
+  font-weight: 700;
+  letter-spacing: 0.12em;
 }
 
 .home-app .flow-logo {
@@ -1702,8 +1702,8 @@ textarea:focus-visible {
   color: var(--pita-cyan);
   font-family: "ChangwonDangamAsac", Impact, "Arial Black", sans-serif;
   font-size: 48px;
-  font-weight: 900;
-  letter-spacing: 0;
+  font-weight: 700;
+  letter-spacing: 0.12em;
 }
 
 .interview-app .flow-heading {
@@ -3118,9 +3118,13 @@ body.report-dashboard-active .flow-shell {
   display: flex;
   align-items: center;
   padding: 0 24px;
+  font-family: "ChangwonDangamAsac", Impact, "Arial Black", sans-serif;
   font-size: 20px;
   font-weight: 700;
+  letter-spacing: 0.12em;
   color: var(--rd-cyan);
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .rd-divider {
