@@ -1257,6 +1257,33 @@ textarea:focus-visible {
   background: var(--pita-cyan);
 }
 
+.presentation-app [data-screen="script"] .script-confirm-actions {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.presentation-app [data-screen="script"] .script-confirm-actions .upload-state {
+  max-width: 100%;
+  text-align: right;
+}
+
+.presentation-app [data-screen="script"] .script-flow-nav {
+  align-items: stretch;
+}
+
+.presentation-app [data-screen="script"] .script-analysis-action {
+  min-width: 0;
+  display: flex;
+}
+
+.presentation-app [data-screen="script"] .script-analysis-action .flow-button {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+
 .presentation-app .upload-box {
   width: 808px;
   min-height: 476px;
@@ -2405,6 +2432,11 @@ textarea:focus-visible {
     border-radius: 12px;
     padding: 0 12px;
     font-size: 18px;
+  }
+
+  .presentation-app [data-screen="script"] .script-flow-nav .flow-button {
+    line-height: 1.25;
+    white-space: normal;
   }
 
   .presentation-app .upload-box {
