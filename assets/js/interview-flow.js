@@ -23,6 +23,8 @@ function showInterviewScreen(name) {
     screen.classList.toggle("is-active", screen.dataset.screen === name);
   });
 
+  document.body.classList.toggle("report-dashboard-active", name === "interview-report");
+
   if (name !== "interview-environment") {
     stopInterviewCheckCamera();
   }
@@ -265,8 +267,10 @@ document.getElementById("startButton").addEventListener("click", () => {
 });
 
 function setInterviewReportPersona() {
-  document.getElementById("interview-report-persona").textContent =
-    interviewPersonaSelect.selectedOptions[0]?.textContent || "가상 면접관";
+  const personaLabel = document.getElementById("interview-report-persona");
+  if (personaLabel) {
+    personaLabel.textContent = interviewPersonaSelect.selectedOptions[0]?.textContent || "가상 면접관";
+  }
 }
 
 interviewReportButton.addEventListener("click", () => {

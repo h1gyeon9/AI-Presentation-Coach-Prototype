@@ -16,10 +16,6 @@ const AUDIO_BITRATE = 32000;
 const RECORD_LABEL = "레코딩";
 const SPEECH_CHARS_PER_MINUTE = 300; // 한국어 발표 발화 속도 추정치 (분당 글자 수)
 
-// netlify/functions/analyze.js의 CONTENT_MARKER/NONVERBAL_MARKER와 정확히 일치해야 함
-const CONTENT_MARKER = "## 내용 리포트";
-const NONVERBAL_MARKER = "## 비언어 리포트";
-
 const statusBadge = document.getElementById("status-badge");
 const scriptText = document.getElementById("script-text");
 const audienceSelect = document.getElementById("audience-select");
@@ -54,19 +50,13 @@ const resetBtn = document.getElementById("reset-btn");
 
 const metricBars = document.getElementById("metric-bars");
 const eventLog = document.getElementById("event-log");
-const coachFeedbackContent = document.getElementById("coach-feedback-content");
 
 const confirmScriptBtn = document.getElementById("confirm-script-btn");
 const scriptConfirmStatus = document.getElementById("script-confirm-status");
 
 const generateReportBtn = document.getElementById("generate-report-btn");
-const resetReportBtn = document.getElementById("reset-report-btn");
-const reportContent = document.getElementById("report-content");
 const reportHint = document.getElementById("report-hint");
-const exportPdfBtn = document.getElementById("export-pdf-btn");
-const printMeta = document.getElementById("print-meta");
-const nonverbalReportSection = document.getElementById("nonverbal-report-section");
-const nonverbalReportContent = document.getElementById("nonverbal-report-content");
+const reportDashboardRoot = document.getElementById("report-dashboard-root");
 
 let scriptConfirmed = false;
 let cameraOn = false;
@@ -86,120 +76,6 @@ function setStatus(kind, text) {
 
 function escapeHtml(str) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function inlineFormat(text) {
-  return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-}
-
-// Gemini 응답이 마크다운(#, **, - 등)으로 오기 때문에, 별도 라이브러리 없이
-// 헤딩/굵게/목록 정도만 가볍게 HTML로 변환해서 가독성을 높인다.
-function renderMarkdownLite(raw) {
-  const lines = raw.replace(/\r\n/g, "\n").split("\n");
-  const htmlParts = [];
-  let listBuffer = [];
-  let listType = null;
-  let paragraphBuffer = [];
-
-  function flushParagraph() {
-    if (paragraphBuffer.length) {
-      htmlParts.push(`<p>${paragraphBuffer.join(" ")}</p>`);
-      paragraphBuffer = [];
-    }
-  }
-
-  function flushList() {
-    if (listBuffer.length) {
-      const tag = listType === "ol" ? "ol" : "ul";
-      htmlParts.push(`<${tag}>${listBuffer.map((item) => `<li>${item}</li>`).join("")}</${tag}>`);
-      listBuffer = [];
-      listType = null;
-    }
-  }
-
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-
-    if (trimmed === "") {
-      flushParagraph();
-      flushList();
-      return;
-    }
-
-    if (/^#{1,6}\s+/.test(trimmed)) {
-      flushParagraph();
-      flushList();
-      htmlParts.push(`<h4 class="md-heading">${inlineFormat(trimmed.replace(/^#{1,6}\s+/, ""))}</h4>`);
-      return;
-    }
-
-    if (/^(-{3,}|\*{3,})$/.test(trimmed)) {
-      flushParagraph();
-      flushList();
-      htmlParts.push("<hr>");
-      return;
-    }
-
-    const bulletMatch = trimmed.match(/^[-*]\s+(.*)/);
-    if (bulletMatch) {
-      flushParagraph();
-      if (listType !== "ul") flushList();
-      listType = "ul";
-      listBuffer.push(inlineFormat(bulletMatch[1]));
-      return;
-    }
-
-    const numberedMatch = trimmed.match(/^\d+[.)]\s+(.*)/);
-    if (numberedMatch) {
-      flushParagraph();
-      if (listType !== "ol") flushList();
-      listType = "ol";
-      listBuffer.push(inlineFormat(numberedMatch[1]));
-      return;
-    }
-
-    flushList();
-    paragraphBuffer.push(inlineFormat(trimmed));
-  });
-
-  flushParagraph();
-  flushList();
-
-  return htmlParts.join("");
-}
-
-function splitReportSections(feedback) {
-  const contentIndex = feedback.indexOf(CONTENT_MARKER);
-  const nonverbalIndex = feedback.indexOf(NONVERBAL_MARKER);
-
-  if (contentIndex === -1) {
-    // 모델이 지정된 제목 형식을 따르지 않은 경우, 전체를 내용 리포트로 취급
-    return { content: feedback.trim(), nonverbal: "" };
-  }
-
-  if (nonverbalIndex === -1) {
-    return { content: feedback.slice(contentIndex + CONTENT_MARKER.length).trim(), nonverbal: "" };
-  }
-
-  return {
-    content: feedback.slice(contentIndex + CONTENT_MARKER.length, nonverbalIndex).trim(),
-    nonverbal: feedback.slice(nonverbalIndex + NONVERBAL_MARKER.length).trim(),
-  };
-}
-
-function setContent(container, text, isPlaceholder) {
-  container.innerHTML = "";
-  if (isPlaceholder) {
-    const p = document.createElement("p");
-    p.className = "result-placeholder";
-    p.textContent = text;
-    container.appendChild(p);
-    return;
-  }
-  const wrap = document.createElement("div");
-  wrap.className = "result-text";
-  wrap.innerHTML = renderMarkdownLite(text);
-  container.appendChild(wrap);
 }
 
 function formatTime(seconds) {
@@ -594,38 +470,167 @@ resetBtn.addEventListener("click", () => {
   pushLogEntry("초기화됨");
 });
 
-function setReportMeta(items) {
-  printMeta.innerHTML = "";
-  items.forEach(({ label, value }) => {
-    const group = document.createElement("div");
-    const dt = document.createElement("dt");
-    dt.textContent = label;
-    const dd = document.createElement("dd");
-    dd.textContent = value;
-    group.append(dt, dd);
-    printMeta.append(group);
-  });
-  printMeta.hidden = items.length === 0;
+function buildPresentationReportModel(report, ctx) {
+  const scores = report.scores || {};
+  const speech = report.speechMetrics || {};
+  const contentAnalysis = report.contentAnalysis || {};
+  const nonverbal = report.nonverbalAnalysis || {};
+  const coaching = Array.isArray(report.coaching) ? report.coaching : [];
+  const followUp = Array.isArray(report.followUpQuestions) ? report.followUpQuestions : [];
+  const history = report.historyComparison || {};
+  const overall = Math.round(report.overallScore || 0);
+  const priorityRank = { high: 0, medium: 1, low: 2 };
+  const sortedCoaching = [...coaching].sort(
+    (a, b) => (priorityRank[a.priority] ?? 3) - (priorityRank[b.priority] ?? 3),
+  );
+  const topIssue = sortedCoaching[0] || {};
+  const emojiIndex = overall >= 80 ? 1 : overall >= 60 ? 3 : overall >= 40 ? 0 : 2;
+  const durationLabel = formatTime(
+    speech.totalDurationSeconds || (ctx.mode === "script" ? estimateSpeakingSeconds(scriptText.value) : elapsedSeconds),
+  );
+  const dateLabel = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+  const hasVideo = ctx.mode === "video" && Boolean(mediaStore.blob);
+  const radarLabels = ["자신감", "논리성", "전달력", "유창함", "시선처리", "발음"];
+  const radarMine = [
+    scores.delivery || 0,
+    scores.logic || 0,
+    scores.delivery || 0,
+    speech.naturalness || 0,
+    scores.eyeContact || 0,
+    scores.pronunciation || 0,
+  ];
+  const radarAvg = [62, 62, 62, 62, 62, 62];
+
+  return {
+    title: "발표 분석 결과",
+    meta: `${dateLabel} · ${ctx.typeLabel || "발표"} · ${getModeLabel()} · 발표 시간 ${durationLabel}`,
+    userName: "김발표",
+    userSub: `${ctx.purposeLabel || "발표"} 코칭`,
+    sessionBadge: dateLabel,
+    defaultTab: "report",
+    tabs: [
+      { id: "script", label: "발표 대본 분석", visible: ctx.mode === "script" },
+      { id: "report", label: "종합 레포트" },
+      { id: "ai", label: "AI 분석 상세" },
+      { id: "video", label: "영상 분석" },
+    ],
+    report: {
+      coaching: {
+        emojis: ["😤", "😊", "😰", "😐"],
+        activeIndex: emojiIndex,
+        title: topIssue.issue || report.summary || "분석 결과를 확인해보세요",
+        body: topIssue.action || report.summary || "",
+      },
+      voice: {
+        wpm: speech.estimatedWpm || 0,
+        silenceRatioPct: speech.estimatedSilenceRatio || 0,
+        durationLabel,
+        seed: (speech.estimatedWpm || 0) + overall + 10,
+        bars: [
+          { label: "발음 명확도", value: scores.pronunciation || 0, color: "#00e5e5" },
+          { label: "말하기 자연스러움", value: speech.naturalness || 0, color: "#00c9a7" },
+          { label: "강세 & 억양", value: speech.intonation || 0, color: "#ffa502" },
+          { label: "호흡 안정성", value: speech.breathingStability || 0, color: "#5352ed" },
+        ],
+      },
+      content: {
+        donutPct: overall,
+        subScores: [
+          { label: "핵심 메시지 전달", score: scores.evidence || 0, color: "#00e5e5" },
+          { label: "논리적 구조", score: scores.logic || 0, color: "#00c9a7" },
+          { label: "근거 및 예시", score: scores.delivery || 0, color: "#ffa502" },
+        ],
+        note: contentAnalysis.logicSummary || contentAnalysis.evidenceSummary || report.summary || "",
+      },
+      radar: {
+        labels: radarLabels,
+        mine: radarMine,
+        avg: radarAvg,
+        badges: [
+          { label: "자신감", value: scores.delivery || 0, color: "#00e5e5" },
+          { label: "발음", value: scores.pronunciation || 0, color: "#00c9a7" },
+          { label: "논리성", value: scores.logic || 0, color: "#ffa502" },
+        ],
+        note: contentAnalysis.strengths?.[0] || "",
+      },
+      scoreSummary: {
+        big: overall,
+        items: [
+          { label: "내용", value: scores.logic || 0, color: "#00e5e5" },
+          { label: "전달", value: scores.delivery || 0, color: "#00c9a7" },
+          { label: "음성", value: scores.pronunciation || 0, color: "#ffa502" },
+          { label: "태도", value: scores.eyeContact || 0, color: "#5352ed" },
+        ],
+      },
+    },
+    ai: {
+      subtitle: "10개 핵심 지표 기반 분석",
+      metrics: [
+        { label: "논리 구조", value: scores.logic || 0, color: "#00e5e5" },
+        { label: "근거/예시", value: scores.evidence || 0, color: "#00c9a7" },
+        { label: "전달력", value: scores.delivery || 0, color: "#ffa502" },
+        { label: "발음 명확도", value: scores.pronunciation || 0, color: "#5352ed" },
+        { label: "시선 처리", value: scores.eyeContact || 0, color: "#00e5e5" },
+        { label: "자세", value: scores.posture || 0, color: "#00c9a7" },
+        { label: "표정", value: scores.expression || 0, color: "#ffa502" },
+        { label: "제스처", value: scores.gesture || 0, color: "#5352ed" },
+        { label: "자연스러움", value: speech.naturalness || 0, color: "#00e5e5" },
+        { label: "억양", value: speech.intonation || 0, color: "#00c9a7" },
+      ],
+      radar: { labels: radarLabels, mine: radarMine, avg: radarAvg },
+      insights: sortedCoaching.slice(0, 5).map((item) => ({
+        title: item.issue || "개선 포인트",
+        body: `${item.action || ""}${item.evidence ? ` (${item.evidence})` : ""}`,
+      })),
+      historyNote: history.available ? history.summary : "이전 세션 데이터가 없어 비교할 수 없습니다.",
+    },
+    video: {
+      objectUrl: hasVideo ? URL.createObjectURL(mediaStore.blob) : null,
+      emptyNote: nonverbal.available ? "" : "영상으로 연습을 녹화하면 비언어 분석 결과가 표시됩니다.",
+      scores: [
+        { label: "시선 처리", value: scores.eyeContact || 0, color: "#00e5e5" },
+        { label: "자세", value: scores.posture || 0, color: "#00c9a7" },
+        { label: "표정/제스처", value: Math.round(((scores.expression || 0) + (scores.gesture || 0)) / 2), color: "#ffa502" },
+      ],
+      feedback: nonverbal.available ? (nonverbal.observations || []).map((text) => ({ text })) : [],
+      emptyFeedbackNote: nonverbal.summary || "영상 기반 비언어 피드백이 아직 없습니다.",
+    },
+    script:
+      ctx.mode === "script"
+        ? {
+            subtitle: `${ctx.typeLabel || "발표"} · 대본 구조 분석`,
+            scoreTiles: [
+              { label: "종합 점수", value: overall, color: "#00e5e5" },
+              { label: "논리 구조", value: scores.logic || 0, color: "#00c9a7" },
+              { label: "근거 및 예시", value: scores.evidence || 0, color: "#ffa502" },
+              { label: "전달력", value: scores.delivery || 0, color: "#5352ed" },
+            ],
+            summary: report.summary || "",
+            strengths: contentAnalysis.strengths || [],
+            improvements: sortedCoaching.map((item) => ({
+              title: item.issue,
+              detail: `${item.action || ""}${item.evidence ? ` — ${item.evidence}` : ""}`,
+              tone: item.priority === "high" ? "bad" : item.priority === "medium" ? "warn" : "good",
+            })),
+            qa: followUp.map((item) => ({
+              question: item.question,
+              intent: item.intent,
+              points: (item.suggestedAnswerPoints || []).join(", "),
+            })),
+          }
+        : null,
+    actions: {
+      shareLabel: "공유하기",
+      resetLabel: "다시 연습하기",
+      onShare: () => window.print(),
+      onReset: () => showPresentationScreen("ready"),
+    },
+  };
 }
-
-resetReportBtn.addEventListener("click", () => {
-  setContent(reportContent, "리포트를 생성하면 이곳에 표시됩니다.", true);
-  nonverbalReportSection.hidden = true;
-  setContent(nonverbalReportContent, "영상 모드로 리포트를 생성하면 이곳에 표시됩니다.", true);
-  setReportMeta([]);
-  if (statusBadge.classList.contains("done")) {
-    setStatus(null, "Gemini 대기");
-  }
-});
-
-exportPdfBtn.addEventListener("click", () => {
-  window.print();
-});
 
 generateReportBtn.addEventListener("click", async () => {
   const mode = getBackendMode();
   const script = scriptText.value.trim();
-  const audience = audienceSelect.value;
 
   if (mode === "script" && script.length < MIN_SCRIPT_LENGTH) {
     alert("대본이 너무 짧습니다. 최소 100자 이상 입력해 주세요.");
@@ -639,9 +644,6 @@ generateReportBtn.addEventListener("click", async () => {
   generateReportBtn.disabled = true;
   setStatus("busy", "분석 중");
   coachStatusLine.textContent = "분석 중입니다...";
-  setContent(coachFeedbackContent, "분석 중입니다...", true);
-  setContent(reportContent, "분석 중입니다...", true);
-  nonverbalReportSection.hidden = true;
   // 로딩 화면 전환을 setTimeout(0) + busy 클래스 검사에 의존하면, 로컬처럼
   // 요청이 즉시 실패하는 환경에서 상태가 이미 원복된 뒤 검사가 실행되는
   // 레이스가 생겨 화면이 넘어가지 않는다. 여기서 동기적으로 바로 전환한다.
@@ -655,58 +657,37 @@ generateReportBtn.addEventListener("click", async () => {
       mediaMimeType = mediaStore.mimeType;
     }
 
-    const data = window.PitaAI
-      ? await window.PitaAI.presentation.analyze({
-          mode,
-          script,
-          mediaBase64,
-          mediaMimeType,
-          measuredMetrics: {
-            recordedDurationSeconds: mode === "script" ? 0 : elapsedSeconds,
-            scriptCharacterCount: script.length,
-          },
-        })
-      : await requestLegacyPresentationAnalysis({
-          mode,
-          script,
-          audience,
-          mediaBase64,
-          mediaMimeType,
-        });
-
-    window.lastPresentationAiReport = data.report || null;
-
-    const { content, nonverbal } = splitReportSections(data.feedback);
-
-    setContent(coachFeedbackContent, "분석이 완료됐습니다. 오른쪽 리포트를 확인하세요.", true);
-    setContent(reportContent, content, false);
-
-    if (mode === "video" && nonverbal) {
-      nonverbalReportSection.hidden = false;
-      setContent(nonverbalReportContent, nonverbal, false);
-    } else {
-      nonverbalReportSection.hidden = true;
-    }
-
-    const audienceLabel = audienceSelect.selectedOptions[0]?.textContent || "";
-    const generatedAt = new Date().toLocaleString("ko-KR", {
-      dateStyle: "medium",
-      timeStyle: "short",
+    const data = await window.PitaAI.presentation.analyze({
+      mode,
+      script,
+      mediaBase64,
+      mediaMimeType,
+      measuredMetrics: {
+        recordedDurationSeconds: mode === "script" ? 0 : elapsedSeconds,
+        scriptCharacterCount: script.length,
+      },
     });
-    setReportMeta([
-      { label: "모드", value: getModeLabel() },
-      { label: "청중", value: audienceLabel },
-      { label: "생성 시각", value: generatedAt },
-    ]);
+
+    const report = data.report || {};
+    window.lastPresentationAiReport = report;
+
+    const ctx = window.PitaAI.presentationContextFromDom();
+    const model = buildPresentationReportModel(report, {
+      mode,
+      typeLabel: ctx.presentationType,
+      purposeLabel: ctx.purpose,
+    });
+    window.PitaReportUI.renderDashboard(reportDashboardRoot, model);
 
     coachStatusLine.textContent = "분석이 완료됐습니다.";
     setStatus("done", "분석 완료");
+    showPresentationScreen("report");
   } catch (err) {
     const message = err.message || "오류가 발생했습니다. 다시 시도해주세요.";
-    setContent(coachFeedbackContent, message, true);
-    setContent(reportContent, message, true);
-    coachStatusLine.textContent = "오류가 발생했습니다.";
+    coachStatusLine.textContent = message;
     setStatus(null, "Gemini 대기");
+    alert(message);
+    showPresentationScreen("ready");
   } finally {
     updateGenerateReportAvailability();
   }
@@ -728,31 +709,6 @@ function dataUrlToBase64(value) {
   if (markerIndex !== -1) return text.slice(markerIndex + marker.length);
   const commaIndex = text.lastIndexOf(",");
   return commaIndex !== -1 ? text.slice(commaIndex + 1) : text;
-}
-
-async function requestLegacyPresentationAnalysis(payload) {
-  const response = await fetch("/.netlify/functions/analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const rawBody = await response.text();
-  let data;
-
-  try {
-    data = JSON.parse(rawBody);
-  } catch {
-    throw new Error(
-      rawBody
-        ? `서버 응답을 해석하지 못했습니다: ${rawBody.slice(0, 200)}`
-        : "서버로부터 빈 응답을 받았습니다. 파일 용량을 줄이거나 잠시 후 다시 시도해주세요.",
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(data.error || "분석 요청이 실패했습니다.");
-  }
-  return data;
 }
 
 updateModeUI();
