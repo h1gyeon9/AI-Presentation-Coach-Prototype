@@ -167,21 +167,20 @@
                 placeholder="발표할 대본을 입력하세요."
               ></textarea>
             </div>
-            <div class="practice-controls">
+            <div class="practice-controls script-confirm-actions">
               <button id="confirm-script-btn" type="button">대본 확정</button>
               <span class="upload-state" id="script-confirm-status" hidden></span>
             </div>
           </section>
-          <div id="script-analysis-action" class="flow-nav single">
-            <button class="flow-button flow-button-primary" id="generate-report-btn" type="button" disabled>
-              분석 시작
-            </button>
-          </div>
           <p class="upload-state" id="report-hint">발표 목적과 대본을 확인해주세요.</p>
         </div>
-        <div class="flow-nav">
+        <div class="flow-nav script-flow-nav">
           <button class="flow-button" type="button" data-go="ready">이전</button>
-          <span aria-hidden="true"></span>
+          <div id="script-analysis-action" class="script-analysis-action">
+            <button class="flow-button flow-button-primary" id="generate-report-btn" type="button" disabled>
+              대본 분석 시작
+            </button>
+          </div>
         </div>
       </section>
 
@@ -316,7 +315,11 @@
         <h1 class="flow-heading" id="presentation-loading-title">AI가 분석하고 있어요</h1>
         <div class="loading-figure">
           <img src="./assets/images/analysis-mascot.png" alt="분석 중인 PITA 캐릭터" />
-          <img class="loading-dots" src="./assets/images/loading-dots.svg" alt="" />
+          <div class="loading-dots" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
         </div>
       </section>
 
