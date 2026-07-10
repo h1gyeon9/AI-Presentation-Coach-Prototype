@@ -344,6 +344,7 @@
         </div>
         <div class="rd-action-bar">
           <button type="button" class="rd-btn" data-rd-action="share">${escapeHtml(model.actions?.shareLabel || "공유하기")}</button>
+          ${model.actions?.homeLabel ? `<button type="button" class="rd-btn" data-rd-action="home">${escapeHtml(model.actions.homeLabel)}</button>` : ""}
           <button type="button" class="rd-btn rd-btn-primary" data-rd-action="reset">${escapeHtml(model.actions?.resetLabel || "다시 연습하기")}</button>
         </div>
       </div>
@@ -365,8 +366,10 @@
     });
 
     const shareBtn = container.querySelector('[data-rd-action="share"]');
+    const homeBtn = container.querySelector('[data-rd-action="home"]');
     const resetBtn = container.querySelector('[data-rd-action="reset"]');
     if (shareBtn) shareBtn.addEventListener("click", () => model.actions?.onShare?.());
+    if (homeBtn) homeBtn.addEventListener("click", () => model.actions?.onHome?.());
     if (resetBtn) resetBtn.addEventListener("click", () => model.actions?.onReset?.());
 
     if (model.video?.objectUrl) {

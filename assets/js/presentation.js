@@ -620,10 +620,24 @@ function buildPresentationReportModel(report, ctx) {
           }
         : null,
     actions: {
-      shareLabel: "공유하기",
-      resetLabel: "다시 연습하기",
+      shareLabel: "PDF로 저장",
+      homeLabel: "처음으로",
+      resetLabel: "발표 연습 이어가기",
       onShare: () => window.print(),
-      onReset: () => showPresentationScreen("ready"),
+      onHome: () => showPresentationScreen("ready"),
+      onReset: () => {
+        if (typeof presentationBranch !== "undefined") presentationBranch = "practice";
+        modeSelect.value = "record";
+        modeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        document.querySelectorAll("[data-presentation-branch]").forEach((button) => {
+          const selected = button.dataset.presentationBranch === "practice";
+          button.classList.toggle("is-selected", selected);
+          button.setAttribute("aria-pressed", String(selected));
+        });
+        const nextButton = document.getElementById("presentation-branch-next");
+        if (nextButton) nextButton.disabled = false;
+        showPresentationScreen("environment");
+      },
     },
   };
 }

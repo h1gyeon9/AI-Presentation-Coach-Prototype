@@ -1053,7 +1053,9 @@ textarea:focus-visible {
   .flow-heading,
   .flow-nav,
   .flow-status,
-  .report-actions-flow {
+  .report-actions-flow,
+  .report-pdf-action,
+  .report-nav-actions {
     display: none !important;
   }
 
@@ -1255,6 +1257,33 @@ textarea:focus-visible {
 .presentation-app .flow-nav .flow-button-primary {
   color: #1c1c1c;
   background: var(--pita-cyan);
+}
+
+.presentation-app [data-screen="script"] .script-confirm-actions {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.presentation-app [data-screen="script"] .script-confirm-actions .upload-state {
+  max-width: 100%;
+  text-align: right;
+}
+
+.presentation-app [data-screen="script"] .script-flow-nav {
+  align-items: stretch;
+}
+
+.presentation-app [data-screen="script"] .script-analysis-action {
+  min-width: 0;
+  display: flex;
+}
+
+.presentation-app [data-screen="script"] .script-analysis-action .flow-button {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
 }
 
 .presentation-app .upload-box {
@@ -1594,7 +1623,38 @@ textarea:focus-visible {
 .presentation-app .loading-dots {
   width: 52px;
   height: 12px;
+  display: flex;
+  justify-content: space-between;
   margin-top: 32px;
+}
+
+.presentation-app .loading-dots span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #d9d9d9;
+  animation: loading-dot-sequence 1.05s ease-in-out infinite;
+}
+
+.presentation-app .loading-dots span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.presentation-app .loading-dots span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes loading-dot-sequence {
+  0%,
+  100% {
+    background: #d9d9d9;
+    transform: translateY(0);
+  }
+
+  34% {
+    background: var(--pita-cyan);
+    transform: translateY(-2px);
+  }
 }
 
 .presentation-app .flow-input,
@@ -2019,7 +2079,11 @@ textarea:focus-visible {
 
 .presentation-app .practice-panel-flow .camera-stage-flow {
   width: 100%;
-  height: 420px;
+  height: 520px;
+}
+
+.interview-app [data-screen="interview-practice"] .camera-stage-flow {
+  height: 520px;
 }
 
 .presentation-app .metric-row-flow,
@@ -2074,6 +2138,61 @@ textarea:focus-visible {
   color: #eef7f8;
   background: #2b3032;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.2);
+}
+
+.presentation-app [data-screen="report"] .report-card-flow {
+  display: flex;
+  flex-direction: column;
+}
+
+.presentation-app .report-pdf-action {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 28px;
+}
+
+.presentation-app .report-pdf-action button {
+  min-width: 168px;
+  min-height: 48px;
+  border: 1px solid var(--pita-cyan);
+  border-radius: 10px;
+  color: #1c1c1c;
+  background: var(--pita-cyan);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.presentation-app .report-pdf-action button:hover {
+  border-color: var(--pita-cyan-border);
+  background: #17ffff;
+}
+
+.presentation-app .report-nav-actions {
+  display: grid;
+  grid-template-columns: 328px minmax(0, 1fr);
+  gap: 28px;
+  margin-top: 34px;
+}
+
+.presentation-app .report-nav-actions button {
+  min-height: 80px;
+  border: 0;
+  border-radius: 22px;
+  color: #434343;
+  background: linear-gradient(180deg, #f2f2f2 0%, #dedede 100%);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.presentation-app .report-nav-actions button.primary {
+  color: #111;
+  background: linear-gradient(180deg, #10c6c6 0%, #00eeee 100%);
+}
+
+.presentation-app .report-nav-actions button:hover {
+  filter: brightness(1.04);
 }
 
 .presentation-app .report-card-flow h2,
@@ -2405,6 +2524,35 @@ textarea:focus-visible {
     border-radius: 12px;
     padding: 0 12px;
     font-size: 18px;
+  }
+
+  .presentation-app .report-nav-actions {
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .presentation-app .report-nav-actions button {
+    min-height: 58px;
+    border-radius: 14px;
+    padding: 0 12px;
+    font-size: 18px;
+    line-height: 1.25;
+    white-space: normal;
+  }
+
+  .presentation-app .report-pdf-action {
+    padding-top: 22px;
+  }
+
+  .presentation-app .report-pdf-action button {
+    width: 100%;
+    max-width: 180px;
+  }
+
+  .presentation-app [data-screen="script"] .script-flow-nav .flow-button {
+    line-height: 1.25;
+    white-space: normal;
   }
 
   .presentation-app .upload-box {
@@ -2793,6 +2941,14 @@ textarea:focus-visible {
     width: 100%;
     height: auto;
     aspect-ratio: 16 / 9;
+  }
+
+  .interview-app [data-screen="interview-practice"] .camera-stage-flow {
+    aspect-ratio: 4 / 3;
+  }
+
+  .presentation-app [data-screen="practice"] .camera-stage-flow {
+    aspect-ratio: 4 / 3;
   }
 
   .presentation-app .check-actions,
