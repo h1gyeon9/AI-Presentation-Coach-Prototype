@@ -126,9 +126,8 @@ interviewRolePresetButtons.forEach((button) => {
     interviewRoleInput.dispatchEvent(new Event("change", { bubbles: true }));
     syncRolePresetSelection();
 
-    if (button.dataset.rolePreset === "공무원") {
+    if (button.dataset.rolePreset === "공무원" && interviewTalentInput) {
       interviewTalentInput.value = CIVIL_SERVANT_TALENT;
-      document.querySelector(".interview-extra-panel").setAttribute("open", "");
     }
   });
 });
