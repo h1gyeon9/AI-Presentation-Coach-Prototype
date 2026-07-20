@@ -5,6 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PITA · Presentation & Interview Teaching Assistant</title>
     <link rel="stylesheet" href="./assets/css/app.css" />
+    <style>
+      .interview-app .upload-tip {
+        padding: 5px 24px;
+        border-radius: 8px;
+        background: var(--pita-cyan);
+        color: #1c1c1c;
+        font-size: 16px !important;
+        font-weight: 600;
+      }
+      .interview-app .upload-tip b {
+        margin-left: 4px;
+        color: #e53935;
+      }
+      .interview-app .upload-trigger {
+        background: #2b3032;
+        color: #fff;
+      }
+      .interview-app .upload-trigger:hover {
+        background: #3a4245;
+      }
+      .interview-company-section {
+        margin-top: 40px;
+        display: grid;
+        gap: 16px;
+        width: 808px;
+      }
+      .interview-company-section .flow-textarea {
+        width: 100%;
+        min-height: 160px;
+        padding: 20px 24px;
+        font-size: 22px;
+        line-height: 1.6;
+        resize: vertical;
+      }
+    </style>
   </head>
   <body class="flow-app interview-app">
     <main class="flow-shell">
@@ -22,13 +57,12 @@
         <div class="flow-screen-body">
           <h2 class="flow-section-title">면접 자료</h2>
           <div class="upload-box">
-            <span class="upload-icon" aria-hidden="true">＋</span>
-            <strong>이력서(포트폴리오) 또는 자기소개서를 공유해주세요</strong>
-            <p>pdf, ppt, doc (최대 50MB)</p>
+            <strong>이력서(포트폴리오) 또는 자기소개서를 공유해주세요.</strong>
+            <p>pdf(추천), pptx, doc, png, txt, md (최대 50MB)</p>
             <label class="upload-trigger" for="resumeFile">파일 첨부</label>
             <p class="upload-state" id="fileName">선택된 파일이 없습니다.</p>
-            <p>자세하게 작성된 내용일수록 정확도가 올라가요 UP</p>
-            <input id="resumeFile" type="file" accept=".txt,.md,.pdf,.docx" hidden />
+            <p class="upload-tip">자세하게 작성된 내용일수록 정확도가 올라가요 <b>UP</b></p>
+            <input id="resumeFile" type="file" accept=".txt,.md,.pdf,.ppt,.pptx,.doc,.docx,.png" hidden />
           </div>
           <div class="interview-uploaded-files" id="interview-file-list" hidden>
             <div class="uploaded-file-row">
@@ -37,10 +71,16 @@
                 <img src="./assets/images/icon-cancel.svg" alt="" />
               </button>
             </div>
-            <label class="consent-row" for="privacy-consent">
-              <input id="privacy-consent" type="checkbox" />
-              <span>개인정보 수집 및 이용 선택 동의</span>
-            </label>
+          </div>
+          <div class="interview-company-section" id="interview-company-section" hidden>
+            <h2 class="flow-section-title">지원회사 및 인재상(면접 기준표) 입력</h2>
+            <p class="calibration-copy">없어도 괜찮아요. 회사명과 직무를 입력하면 자동으로 입력해 드릴게요.</p>
+            <textarea
+              class="flow-textarea"
+              id="companyInfoInput"
+              rows="5"
+              placeholder="지원 회사명, 직무, 인재상 또는 평가 기준을 입력하세요."
+            ></textarea>
           </div>
         </div>
         <div class="flow-nav">
@@ -222,7 +262,7 @@
           <p class="calibration-copy" id="interview-check-status">
             정면을 바라보고 화면 안에 얼굴이 들어오도록 맞춰주세요.
           </p>
-          <p class="calibration-copy"><strong>“낮말은 새가 듣고, 밤말은 쥐가 듣는다.”</strong></p>
+          <p class="calibration-copy"><strong>"낮말은 새가 듣고, 밤말은 쥐가 듣는다."</strong></p>
         </div>
         <div class="flow-nav">
           <button class="flow-button" type="button" data-go="interview-setup">이전</button>
