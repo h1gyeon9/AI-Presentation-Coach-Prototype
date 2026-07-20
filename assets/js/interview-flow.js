@@ -12,6 +12,8 @@ const interviewFileNameState = document.getElementById("fileName");
 const interviewFileList = document.getElementById("interview-file-list");
 const interviewFileName = document.getElementById("interview-file-name");
 const interviewFileRemove = document.getElementById("interview-file-remove");
+const interviewCompanySection = document.getElementById("interview-company-section");
+const companyInfoInput = document.getElementById("companyInfoInput");
 const interviewRoleInput = document.getElementById("roleInput");
 const interviewRolePresetButtons = [...document.querySelectorAll("[data-role-preset]")];
 const interviewCompanyInput = document.getElementById("companyInput");
@@ -44,6 +46,17 @@ document.querySelectorAll("[data-go]").forEach((button) => {
   button.addEventListener("click", () => showInterviewScreen(button.dataset.go));
 });
 
+// 업로드 화면 → 직무 화면 이동 시 company info를 talentInput에 반영
+const uploadNextBtn = document.querySelector('[data-screen="interview-upload"] [data-go="interview-job"]');
+if (uploadNextBtn) {
+  uploadNextBtn.addEventListener("click", () => {
+    const info = companyInfoInput?.value.trim();
+    if (info && interviewTalentInput && !interviewTalentInput.value.trim()) {
+      interviewTalentInput.value = info;
+    }
+  }, { capture: true });
+}
+
 function hasInterviewFileState() {
   const stateText = interviewFileNameState.textContent.trim();
   return Boolean(interviewResumeFile.files?.[0]) && !stateText.includes("선택된 파일");
@@ -54,6 +67,7 @@ function syncInterviewFileCard() {
   interviewFileNameState.classList.toggle("is-ready", hasFile);
   interviewUploadBox.hidden = hasFile;
   interviewFileList.hidden = !hasFile;
+  if (interviewCompanySection) interviewCompanySection.hidden = !hasFile;
   if (hasFile) {
     interviewFileName.textContent =
       interviewFileNameState.textContent.trim() || interviewResumeFile.files[0].name;
