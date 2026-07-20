@@ -22,8 +22,12 @@ const SESSION_STORAGE_KEY = "interviewCoachSession.v2";
 const SHARED_REPORT_PREFIX = "interviewCoachSharedReport.";
 
 const personaLabels = {
+  hr: "인사담당자",
+  field: "실무 팀장",
+  pressure: "압박 면접관",
+  executive: "임원 면접관",
+  // legacy
   calm: "차분한 구조화 면접관",
-  pressure: "압박형 꼬리질문 면접관",
   behavior: "경험 검증형 면접관",
   job: "직무 적합성 중심 면접관",
 };

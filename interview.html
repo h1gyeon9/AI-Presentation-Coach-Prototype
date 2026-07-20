@@ -94,7 +94,46 @@
         </div>
         <div class="flow-nav">
           <button class="flow-button" type="button" data-go="interview-upload">이전</button>
-          <button class="flow-button flow-button-primary" type="button" data-go="interview-setup">다음</button>
+          <button class="flow-button flow-button-primary" type="button" data-go="interview-persona">다음</button>
+        </div>
+      </section>
+
+      <section class="flow-screen" data-screen="interview-persona" aria-labelledby="interview-persona-title">
+        <h1 class="flow-heading" id="interview-persona-title">면접관 유형을 선택해주세요.</h1>
+        <div class="flow-screen-body persona-body">
+          <select class="sr-only" id="personaInput" tabindex="-1" aria-hidden="true">
+            <option value="">면접관 유형을 선택해주세요</option>
+            <option value="hr">인사담당자</option>
+            <option value="field">실무 팀장</option>
+            <option value="pressure">압박 면접관</option>
+            <option value="executive">임원 면접관</option>
+          </select>
+          <div class="persona-grid" role="radiogroup" aria-label="면접관 유형 선택">
+            <button class="persona-card" type="button" data-interview-persona="hr" aria-pressed="false">
+              <img src="./assets/images/persona-team.png" alt="" />
+              <strong>인사담당자</strong>
+              <span>지원 동기·가치관·팀 적합도를 꼼꼼하게 검증</span>
+            </button>
+            <button class="persona-card" type="button" data-interview-persona="field" aria-pressed="false">
+              <img src="./assets/images/persona-audience.png" alt="" />
+              <strong>실무 팀장</strong>
+              <span>업무 역량과 현장 문제 해결 방식을 중심으로 검증</span>
+            </button>
+            <button class="persona-card" type="button" data-interview-persona="pressure" aria-pressed="false">
+              <img src="./assets/images/persona-professor.png" alt="" />
+              <strong>압박 면접관</strong>
+              <span>꼬리질문과 반론으로 압박하며 위기 대처 능력을 검증</span>
+            </button>
+            <button class="persona-card" type="button" data-interview-persona="executive" aria-pressed="false">
+              <img src="./assets/images/persona-investor.png" alt="" />
+              <strong>임원 면접관</strong>
+              <span>성장 가능성·리더십·비전을 거시적 관점에서 검증</span>
+            </button>
+          </div>
+        </div>
+        <div class="flow-nav">
+          <button class="flow-button" type="button" data-go="interview-job">이전</button>
+          <button class="flow-button flow-button-primary" id="interview-persona-next" type="button" data-go="interview-setup" disabled>다음</button>
         </div>
       </section>
 
@@ -126,17 +165,7 @@
           </div>
 
           <details class="interview-extra-panel">
-            <summary>면접관 성향과 꼬리질문 강도 설정</summary>
-            <label class="flow-field" for="personaInput">
-              <span>가상 면접관</span>
-              <select class="flow-select" id="personaInput">
-                <option value="calm">차분한 구조화 면접관</option>
-                <option value="pressure">압박형 꼬리질문 면접관</option>
-                <option value="behavior">경험 검증형 면접관</option>
-                <option value="job">직무 적합성 중심 면접관</option>
-              </select>
-            </label>
-
+            <summary>꼬리질문 강도 설정</summary>
             <div class="flow-field">
               <span>꼬리질문 강도 <output id="depthOutput" for="depthInput">3</output></span>
               <input id="depthInput" type="range" min="1" max="5" value="3" />
@@ -144,7 +173,7 @@
           </details>
         </div>
         <div class="flow-nav">
-          <button class="flow-button" type="button" data-go="interview-job">이전</button>
+          <button class="flow-button" type="button" data-go="interview-persona">이전</button>
           <button class="flow-button flow-button-primary" id="interview-setup-next" type="button" disabled>다음</button>
         </div>
       </section>

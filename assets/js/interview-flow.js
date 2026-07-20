@@ -16,6 +16,8 @@ const interviewRoleInput = document.getElementById("roleInput");
 const interviewRolePresetButtons = [...document.querySelectorAll("[data-role-preset]")];
 const interviewCompanyInput = document.getElementById("companyInput");
 const interviewTalentInput = document.getElementById("talentInput");
+const interviewPersonaCards = [...document.querySelectorAll("[data-interview-persona]")];
+const interviewPersonaNext = document.getElementById("interview-persona-next");
 
 let interviewBranch = "questions";
 let interviewCheckStream = null;
@@ -96,9 +98,27 @@ interviewRolePresetButtons.forEach((button) => {
   });
 });
 
+function syncInterviewPersonaCards() {
+  const value = interviewPersonaSelect.value;
+  interviewPersonaCards.forEach((card) => {
+    const selected = card.dataset.interviewPersona === value;
+    card.classList.toggle("is-selected", selected);
+    card.setAttribute("aria-pressed", String(selected));
+  });
+  if (interviewPersonaNext) interviewPersonaNext.disabled = !value;
+}
+
+interviewPersonaCards.forEach((card) => {
+  card.addEventListener("click", () => {
+    interviewPersonaSelect.value = card.dataset.interviewPersona;
+    syncInterviewPersonaCards();
+  });
+});
+
 interviewRoleInput.addEventListener("input", syncRolePresetSelection);
 syncInterviewFileCard();
 syncRolePresetSelection();
+syncInterviewPersonaCards();
 
 interviewTypeSelect.addEventListener("change", () => {
   interviewSetupNext.disabled = !interviewTypeSelect.value;
