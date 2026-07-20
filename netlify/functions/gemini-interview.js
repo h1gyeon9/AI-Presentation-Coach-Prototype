@@ -167,18 +167,22 @@ function buildSystemInstruction(mode, profile = {}, payload = {}) {
     ].join(" ");
   }
 
+  const isCivilServant = (profile.role || "").includes("공무원");
   return [
     "당신은 한국어로 진행하는 1:1 AI 면접관입니다.",
     `면접관 페르소나는 '${persona}'이고 꼬리질문 강도는 1에서 5 중 ${depth}입니다.`,
     "지원자의 최근 답변에 근거해 실제 면접처럼 하나의 질문만 던집니다.",
     "질문은 2문장 이내로 짧게 말하고, 칭찬이나 해설을 길게 붙이지 않습니다.",
-    "모호한 답변에는 역할, 근거, 수치, 갈등, 실패, 재발 방지 중 하나를 파고듭니다.",
+    isCivilServant
+      ? "공무원 인성면접 스타일로 진행합니다. 질문은 공직가치관(청렴·봉사·책임감), 조직 적응력, 장기근속 의지, 민원 응대, 상사 지시 대처, 공익 우선 판단을 중심으로 구성하고, 상황형 질문(예: 상사가 부당한 지시를 했을 때, 민원인이 무리한 요구를 할 때, 희망 외 부서에 배치됐을 때)을 자연스럽게 섞습니다. 모호한 답변에는 구체적 경험, 판단 기준, 원칙과 융통성 사이의 선택을 파고듭니다."
+      : "모호한 답변에는 역할, 근거, 수치, 갈등, 실패, 재발 방지 중 하나를 파고듭니다.",
     "반드시 JSON만 반환합니다. 예: {\"reply\":\"질문\",\"focus\":\"검증하려는 역량\"}",
   ].join(" ");
 }
 
 function buildTurnInput(payload) {
   const profile = payload.profile || {};
+  const isCivilServant = (profile.role || "").includes("공무원");
   const history = (payload.messages || [])
     .slice(-10)
     .map((message) => `${message.role === "ai" ? "면접관" : "지원자"}: ${message.text}`)
@@ -191,13 +195,18 @@ function buildTurnInput(payload) {
     `인재상: ${profile.talent || "미입력"}`,
     `자기소개서 파일: ${profile.resumeName || "없음"}`,
     `자기소개서 발췌: ${profile.resumeText || "없음"}`,
+    isCivilServant
+      ? "\n[공무원 면접 중점 역량]\n아직 다루지 않은 영역(공직가치관, 장기근속 의지, 조직 적응력, 민원 응대, 상사 지시 대처, 공익 판단)을 대화 흐름에 맞게 자연스럽게 질문하세요."
+      : "",
     "",
     "[대화 기록]",
     history || "아직 대화 없음",
     "",
     "[최근 답변]",
     payload.latestAnswer || "첫 질문을 시작해 주세요.",
-  ].join("\n");
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
 }
 
 function buildReportInput(payload) {
