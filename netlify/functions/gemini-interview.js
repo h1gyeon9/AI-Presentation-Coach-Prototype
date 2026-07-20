@@ -139,6 +139,7 @@ function buildSystemInstruction(mode, profile = {}, payload = {}) {
   const depth = profile.depth || 3;
 
   if (mode === "report") {
+    const isCivilServant = (profile.role || "").includes("공무원");
     const videoGuidance = hasVideoAttachment(payload)
       ? "첨부된 카메라 영상 샘플이 있으면 nonverbalFeedback은 영상에서 실제로 확인되는 시선, 표정, 자세, 제스처를 근거로 5~7개의 구체적인 피드백을 작성합니다. 각 항목은 관찰된 신호, 면접 인상에 미치는 영향, 바로 연습할 개선 행동을 함께 담습니다. 화면에서 확인하기 어려운 항목은 단정하지 않습니다."
       : "첨부 영상이 없으면 실제 비언어 분석을 했다고 말하지 말고 nonverbalFeedback은 빈 배열로 반환합니다.";
@@ -146,10 +147,13 @@ function buildSystemInstruction(mode, profile = {}, payload = {}) {
       "당신은 한국어 면접 코치입니다.",
       "지원자의 답변 기록을 바탕으로 간결하고 실천 가능한 피드백을 제공합니다.",
       "답변을 바탕으로 실제 면접에서 이어질 가능성이 높은 꼬리질문과 질문 의도, 답변에 포함하면 좋은 경험·근거를 제안합니다.",
+      isCivilServant
+        ? "공무원 면접 결과이므로 공직가치관(청렴·봉사·책임감) 답변의 진정성과 구체성, 장기근속 의지의 설득력, 조직 적응력 표현, 민원 응대 태도, 공익 우선 판단력을 중점적으로 평가합니다. improvements와 practicePlan은 공직자로서 실제 면접 합격에 필요한 역량 강화 방향으로 작성합니다."
+        : "",
       videoGuidance,
       "면접 합격을 보장하거나 과장하지 않습니다.",
       "반드시 JSON만 반환합니다.",
-    ].join(" ");
+    ].filter(Boolean).join(" ");
   }
 
   if (mode === "questions") {
@@ -211,6 +215,7 @@ function buildTurnInput(payload) {
 
 function buildReportInput(payload) {
   const profile = payload.profile || {};
+  const isCivilServant = (profile.role || "").includes("공무원");
   const hasVideo = hasVideoAttachment(payload);
   const conversation = (payload.messages || [])
     .map((message, index) => {
@@ -241,6 +246,20 @@ function buildReportInput(payload) {
     "",
     "면접관 질문의 의도와 지원자 답변의 대응력을 함께 평가하세요.",
     "로컬 분석은 참고 자료이며, 최종 피드백은 대화 기록을 우선해서 판단하세요.",
+    isCivilServant
+      ? [
+          "",
+          "[공무원 면접 중점 평가 항목 - 아래 항목별로 답변의 적절성을 평가에 반영하세요]",
+          "1. 공직가치관(청렴·봉사·책임감·국가관) 답변의 진정성과 구체성",
+          "2. 장기근속 의지 및 헌신도의 설득력 (민간 대비 낮은 보상, 재도전 의지 등)",
+          "3. 조직 내 적응력과 위계질서 수용 태도 (희망 외 부서 배치, 연상/연하 상사 관계)",
+          "4. 민원인 응대 및 갈등 상황 대처 방식의 적절성",
+          "5. 공익과 개인 이익 충돌 시 판단력",
+          "6. 상사의 부당한 지시에 대한 대처의 균형감 (원칙 준수 vs 유연성)",
+          "followUpQuestions는 위 공직자 역량 중 답변에서 미흡하거나 더 검증이 필요한 부분을 중심으로 구성하세요.",
+          "improvements와 practicePlan은 공직자 면접 합격에 실질적으로 필요한 역량 강화 방향으로 작성하세요.",
+        ].join("\n")
+      : "",
     hasVideo
       ? "비언어 피드백은 첨부된 카메라 영상 샘플에서 실제로 보이는 시선 처리, 표정 변화, 손/제스처, 자세를 중심으로 작성하세요. nonverbalFeedback은 5~7개 항목으로 작성하고, 각 항목은 1~2문장의 상세한 한국어 조언이어야 합니다. 로컬 비언어 점수나 화면 막대 값은 더미/시뮬레이션일 수 있으므로 사용하지 마세요."
       : "첨부 영상이 없으므로 실제 비언어 피드백을 생성하지 마세요. nonverbalFeedback은 빈 배열로 반환하세요.",
@@ -249,7 +268,7 @@ function buildReportInput(payload) {
     "",
     "다음 JSON 스키마로만 반환하세요.",
     "{\"summary\":\"2문장 종합평\",\"strengths\":[\"강점1\",\"강점2\"],\"languageHabits\":[\"언어 습관 피드백1\",\"언어 습관 피드백2\"],\"contentFeedback\":[\"내용 피드백1\",\"내용 피드백2\"],\"nonverbalFeedback\":[\"영상 기반 비언어 피드백 1\",\"영상 기반 비언어 피드백 2\"],\"followUpQuestions\":[{\"question\":\"예상 꼬리질문\",\"intent\":\"질문 의도\",\"suggestedAnswerPoints\":[\"언급할 경험\",\"수치 또는 근거\"]}],\"improvements\":[\"보완점1\",\"보완점2\",\"보완점3\"],\"practicePlan\":[\"연습1\",\"연습2\",\"연습3\"]}",
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 function buildQuestionsInput(payload) {
