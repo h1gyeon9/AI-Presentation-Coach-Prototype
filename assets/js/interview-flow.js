@@ -79,12 +79,20 @@ function syncRolePresetSelection() {
   });
 }
 
+const CIVIL_SERVANT_TALENT =
+  "공직가치관(청렴·봉사정신·책임감·국가관), 조직 내 협력과 위계 질서 수용, 장기근속 의지와 헌신, 상사 지시 이행 및 합리적 소통, 민원인 응대 역량, 공익과 개인 이익 충돌 시 공익 우선 판단";
+
 interviewRolePresetButtons.forEach((button) => {
   button.addEventListener("click", () => {
     interviewRoleInput.value = button.dataset.rolePreset;
     interviewRoleInput.dispatchEvent(new Event("input", { bubbles: true }));
     interviewRoleInput.dispatchEvent(new Event("change", { bubbles: true }));
     syncRolePresetSelection();
+
+    if (button.dataset.rolePreset === "공무원") {
+      interviewTalentInput.value = CIVIL_SERVANT_TALENT;
+      document.querySelector(".interview-extra-panel").setAttribute("open", "");
+    }
   });
 });
 
