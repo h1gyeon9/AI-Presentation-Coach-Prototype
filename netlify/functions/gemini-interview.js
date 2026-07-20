@@ -160,7 +160,7 @@ function buildSystemInstruction(mode, profile = {}, payload = {}) {
       "각 질문에는 면접관이 확인하려는 의도를 한 문장으로 붙입니다.",
       "반드시 JSON만 반환합니다.",
       "형식: {\"questions\":[{\"category\":\"직무 경험 (적합성)\",\"question\":\"질문\",\"intent\":\"질문 의도\"}]}",
-      "질문은 총 8개를 반환합니다.",
+      "질문은 총 15개를 반환합니다.",
     ].join(" ");
   }
 
@@ -252,7 +252,7 @@ function buildQuestionsInput(payload) {
     `자기소개서 파일: ${profile.resumeName || "없음"}`,
     `자기소개서 발췌: ${profile.resumeText || "없음"}`,
     "",
-    "지원자의 경험을 구체적으로 검증할 수 있는 예상 질문 8개를 만들어 주세요.",
+    "지원자의 경험을 구체적으로 검증할 수 있는 예상 질문 15개를 만들어 주세요.",
     "이력서 내용이 부족하면 직무와 인재상을 중심으로 질문을 구성하세요.",
   ].join("\n");
 }
