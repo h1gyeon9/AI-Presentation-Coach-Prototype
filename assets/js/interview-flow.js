@@ -16,18 +16,6 @@ const interviewRoleInput = document.getElementById("roleInput");
 const interviewRolePresetButtons = [...document.querySelectorAll("[data-role-preset]")];
 const interviewCompanyInput = document.getElementById("companyInput");
 const interviewTalentInput = document.getElementById("talentInput");
-const interviewJobPresetButtons = [...document.querySelectorAll("[data-job-preset]")];
-
-const jobPresets = {
-  공무원: {
-    company: "국가직/지방직 공무원",
-    talent: "국가와 국민에 대한 봉사정신, 공정성과 청렴성, 책임감과 사명감, 규정 준수 및 협력",
-  },
-  행정직: {
-    company: "지방행정직",
-    talent: "행정 업무 전문성, 민원 응대 역량, 공정하고 신속한 업무 처리, 팀워크와 소통 능력",
-  },
-};
 
 let interviewBranch = "questions";
 let interviewCheckStream = null;
@@ -100,32 +88,9 @@ interviewRolePresetButtons.forEach((button) => {
   });
 });
 
-function syncJobPresetSelection() {
-  const company = interviewCompanyInput.value.trim();
-  const talent = interviewTalentInput.value.trim();
-  interviewJobPresetButtons.forEach((button) => {
-    const preset = jobPresets[button.dataset.jobPreset];
-    button.classList.toggle("is-selected", preset && preset.company === company && preset.talent === talent);
-  });
-}
-
-interviewJobPresetButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const preset = jobPresets[button.dataset.jobPreset];
-    if (!preset) return;
-    interviewCompanyInput.value = preset.company;
-    interviewTalentInput.value = preset.talent;
-    syncJobPresetSelection();
-  });
-});
-
-interviewCompanyInput.addEventListener("input", syncJobPresetSelection);
-interviewTalentInput.addEventListener("input", syncJobPresetSelection);
-
 interviewRoleInput.addEventListener("input", syncRolePresetSelection);
 syncInterviewFileCard();
 syncRolePresetSelection();
-syncJobPresetSelection();
 
 interviewTypeSelect.addEventListener("change", () => {
   interviewSetupNext.disabled = !interviewTypeSelect.value;
