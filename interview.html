@@ -39,6 +39,22 @@
         line-height: 1.6;
         resize: vertical;
       }
+      .interview-file-add {
+        display: inline-flex;
+        align-items: center;
+        margin-top: 16px;
+        padding: 10px 20px;
+        border: 1px dashed var(--pita-card-border);
+        border-radius: 8px;
+        color: var(--pita-muted);
+        font-size: 20px;
+        cursor: pointer;
+        transition: border-color 0.16s, color 0.16s;
+      }
+      .interview-file-add:hover {
+        border-color: var(--pita-cyan);
+        color: var(--pita-cyan);
+      }
     </style>
   </head>
   <body class="flow-app interview-app">
@@ -58,19 +74,14 @@
           <h2 class="flow-section-title">면접 자료</h2>
           <div class="upload-box">
             <strong>이력서(포트폴리오) 또는 자기소개서를 공유해주세요.</strong>
-            <p>pdf(추천), pptx, doc, png, txt, md (최대 50MB)</p>
+            <p>pdf(추천), pptx, doc, png, txt, md (최대 50MB · 최대 3개)</p>
             <label class="upload-trigger" for="resumeFile">파일 첨부</label>
-            <p class="upload-state" id="fileName">선택된 파일이 없습니다.</p>
             <p class="upload-tip">자세하게 작성된 내용일수록 정확도가 올라가요 <b>UP</b></p>
-            <input id="resumeFile" type="file" accept=".txt,.md,.pdf,.ppt,.pptx,.doc,.docx,.png" hidden />
+            <input id="resumeFile" type="file" accept=".txt,.md,.pdf,.ppt,.pptx,.doc,.docx,.png" multiple hidden />
           </div>
           <div class="interview-uploaded-files" id="interview-file-list" hidden>
-            <div class="uploaded-file-row">
-              <span><img src="./assets/images/icon-link.svg" alt="" /><span id="interview-file-name">선택된 파일이 없습니다.</span></span>
-              <button type="button" id="interview-file-remove" aria-label="첨부 파일 삭제">
-                <img src="./assets/images/icon-cancel.svg" alt="" />
-              </button>
-            </div>
+            <div id="interview-file-rows"></div>
+            <label class="interview-file-add" id="interview-file-add" for="resumeFile">+ 파일 추가</label>
           </div>
           <div class="interview-company-section" id="interview-company-section" hidden>
             <h2 class="flow-section-title">지원회사 및 인재상(면접 기준표) 입력</h2>
