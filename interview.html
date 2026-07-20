@@ -129,19 +129,6 @@
             <button type="button" data-role-preset="마케팅">마케팅</button>
             <button type="button" data-role-preset="공무원">공무원</button>
           </div>
-
-          <details class="interview-extra-panel">
-            <summary>지원 회사와 평가 기준 추가 입력</summary>
-            <label class="flow-field" for="companyInput">
-              <span>지원 회사</span>
-              <input class="flow-input" id="companyInput" type="text" value="모빌리티 스타트업" />
-            </label>
-
-            <label class="flow-field" for="talentInput">
-              <span>인재상·평가 기준</span>
-              <textarea class="flow-textarea compact" id="talentInput">고객 문제를 집요하게 정의하고, 데이터로 가설을 검증하며, 논리적이고 명확하게 소통하는 사람</textarea>
-            </label>
-          </details>
         </div>
         <div class="flow-nav">
           <button class="flow-button" type="button" data-go="interview-upload">이전</button>
@@ -383,6 +370,12 @@
         <button id="shareReportButton" type="button" hidden disabled>링크 공유</button>
         <button id="interview-restart" type="button" hidden>처음부터 다시</button>
       </section>
+
+      <!-- getProfile()에서 참조하는 데이터 컨테이너 (UI 미노출) -->
+      <div hidden aria-hidden="true">
+        <input id="companyInput" type="text" />
+        <textarea id="talentInput"></textarea>
+      </div>
     </main>
 
     <script src="./assets/js/ai-client.js"></script>
